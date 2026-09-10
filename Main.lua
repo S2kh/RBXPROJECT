@@ -265,7 +265,7 @@ function Library.new(opts)
 	self.Gui.Parent = guiParent(self.Gui)
 
 	self.Main = create("Frame", {
-		Name = "Main", Size = UDim2.fromOffset(640, 440), Position = UDim2.fromScale(0.5, 0.5),
+		Name = "Main", Size = UDim2.fromOffset(680, 480), Position = UDim2.fromScale(0.5, 0.5),
 		AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Parent = self.Gui,
 	}, {corner(16), stroke(Color3.fromRGB(58, 60, 70)), create("UIGradient", {Rotation = 65, Color = ColorSequence.new(Color3.fromRGB(23, 25, 32), Color3.fromRGB(15, 16, 20))})})
 	self.Scale = create("UIScale", {Scale = 1, Parent = self.Main})
@@ -274,6 +274,11 @@ function Library.new(opts)
 	local titleBar = create("Frame", {Size = UDim2.new(1, 0, 0, 54), BackgroundTransparency = 1, Parent = self.Main})
 	local dot = create("Frame", {Size = UDim2.fromOffset(9, 9), Position = UDim2.fromOffset(20, 23), BackgroundColor3 = THEME.Accent, Parent = titleBar}, {corner(5), stroke(THEME.Accent, 3)})
 	dot.UIStroke.Transparency = 0.7
+	TweenService:Create(dot.UIStroke, TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {Transparency = 0.95, Thickness = 6}):Play()
+	-- light sweep across the title bar on open
+	self.Main.ClipsDescendants = true
+	self.Shine = create("Frame", {Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.93, BorderSizePixel = 0, ZIndex = 0, Parent = titleBar}, {corner(16),
+		create("UIGradient", {Rotation = 15, Offset = Vector2.new(-1.5, 0), Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.42, 0.4), NumberSequenceKeypoint.new(0.5, 0), NumberSequenceKeypoint.new(0.58, 0.4), NumberSequenceKeypoint.new(1, 1)})})})
 	label({Text = opts.Title or "Menu", Font = THEME.FontBold, TextSize = 15, Size = UDim2.new(1, -160, 1, 0), Position = UDim2.fromOffset(40, 0), Parent = titleBar})
 	if IS_MOBILE then
 		label({Text = "Mobile", TextSize = 12, TextColor3 = THEME.SubText, TextXAlignment = Enum.TextXAlignment.Right, Size = UDim2.fromOffset(120, 54), Position = UDim2.new(1, -56, 0, 0), AnchorPoint = Vector2.new(1, 0), Parent = titleBar})
@@ -307,7 +312,7 @@ function Library.new(opts)
 		if resizing and isMove(i) then
 			local d = i.Position - rStart
 			local w = math.clamp(rSize.X.Offset + d.X, 480, 1200)
-			local h = math.clamp(rSize.Y.Offset + d.Y, 340, 900)
+			local h = math.clamp(rSize.Y.Offset + d.Y, 420, 900)
 			self.Main.Size = UDim2.fromOffset(w, h)
 			-- anchor is centered, so shift position by half the growth to keep the top-left corner still
 			self.Main.Position = UDim2.new(rPos.X.Scale, rPos.X.Offset + (w - rSize.X.Offset) / 2, rPos.Y.Scale, rPos.Y.Offset + (h - rSize.Y.Offset) / 2)
@@ -316,10 +321,12 @@ function Library.new(opts)
 
 	-- tab rail + content
 	local rail = create("Frame", {Size = UDim2.new(0, 168, 1, -66), Position = UDim2.fromOffset(12, 54), BackgroundColor3 = THEME.Rail, Parent = self.Main}, {corner(12), stroke()})
+	self.TabIndicator = create("Frame", {Size = UDim2.new(1, -16, 0, 36), Position = UDim2.fromOffset(8, 8), BackgroundColor3 = THEME.AccentDim, Visible = false, ZIndex = 1, Parent = rail}, {corner(9), stroke(THEME.Accent)})
+	self.TabIndicator.UIStroke.Transparency = 0.7
 	self.TabList = create("ScrollingFrame", {
-		Size = UDim2.new(1, -16, 1, -70), Position = UDim2.fromOffset(8, 8), BackgroundTransparency = 1,
+		Size = UDim2.new(1, -16, 1, -70), Position = UDim2.fromOffset(8, 8), BackgroundTransparency = 1, ZIndex = 2,
 		ScrollBarThickness = 0, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, Parent = rail,
-	}, {list(4)})
+	}, {list(3)})
 	create("Frame", {Size = UDim2.new(1, -16, 0, 1), Position = UDim2.new(0, 8, 1, -54), BackgroundColor3 = THEME.Stroke, BorderSizePixel = 0, Parent = rail})
 	label({Text = "ACTIVE CONFIG", TextSize = 10, TextColor3 = THEME.SubText, Font = THEME.FontBold, Size = UDim2.new(1, -32, 0, 14), Position = UDim2.new(0, 16, 1, -44), Parent = rail})
 	self.ConfigDot = create("Frame", {Size = UDim2.fromOffset(6, 6), Position = UDim2.new(0, 16, 1, -25), BackgroundColor3 = THEME.Stroke, Parent = rail}, {corner(3)})
@@ -361,8 +368,8 @@ function Library:_buildSettingsTab(name, icon)
 	tab:AddButton({Name = "Test notification", Callback = function() self:Notify("Hello", "Notifications are working.") end})
 	tab:AddSection("Script")
 	tab:AddButton({Name = "Unload", Callback = function() self:Unload() end})
-	tab:AddLabel(IS_MOBILE and "Tip: tap the minus button to shrink the menu into a floating icon."
-		or "Tip: right-click any toggle to give it a keybind and pick Always, Toggle or Hold.")
+	tab:AddLabel(IS_MOBILE and "Tap the – button to shrink the menu into a floating icon. Tap the icon to bring it back."
+		or "Right-click any toggle to give it a keybind and pick Always, Toggle or Hold.")
 	self.SettingsTab = tab
 	return tab
 end
@@ -380,8 +387,18 @@ function Library:SetVisible(v)
 		self.Main.Visible = true
 		self.Scale.Scale = 0.9
 		tween(self.Scale, {Scale = 1}, SPRING)
+		if self.Shine then
+			self.Shine.UIGradient.Offset = Vector2.new(-1.5, 0)
+			tween(self.Shine.UIGradient, {Offset = Vector2.new(1.5, 0)}, TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+		end
+		for i, t in ipairs(self.Tabs) do
+			t.Scale.Scale = 0.85
+			task.delay(0.04 * (i - 1), function() tween(t.Scale, {Scale = 1}, SPRING) end)
+		end
 		if self.MobileIcon then self.MobileIcon.Visible = false end
 	else
+		if self.Popup then self.Popup:Destroy(); self.Popup = nil end
+		if self.PopupBlur then self.PopupBlur:Destroy(); self.PopupBlur = nil end
 		tween(self.Scale, {Scale = 0.9}, FAST).Completed:Connect(function()
 			if not self.Visible then self.Main.Visible = false end
 		end)
@@ -407,6 +424,7 @@ function Library:Unload()
 	for _, c in ipairs(CONNS) do pcall(function() c:Disconnect() end) end
 	table.clear(CONNS)
 	if self.Popup then self.Popup:Destroy() end
+	if self.PopupBlur then self.PopupBlur:Destroy() end
 	self.Gui:Destroy()
 	if getgenv then getgenv()[GLOBAL_KEY] = nil end
 end
@@ -490,16 +508,17 @@ function Library:AddTab(name, icon, pinned)
 	self._tabCount = (self._tabCount or 0) + 1
 	tab.Button = create("TextButton", {
 		Text = name, Font = THEME.Font, TextSize = 13, TextColor3 = THEME.SubText, TextXAlignment = Enum.TextXAlignment.Left,
-		AutoButtonColor = false, Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = THEME.Element, BackgroundTransparency = 1,
+		AutoButtonColor = false, Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = THEME.Element, BackgroundTransparency = 1,
 		LayoutOrder = (pinned and 10000 or 0) + self._tabCount, Parent = self.TabList,
-	}, {corner(9), create("UIPadding", {PaddingLeft = UDim.new(0, 44)}), stroke(THEME.Accent)})
-	tab.Button.UIStroke.Transparency = 1
-	tab.Tile = create("TextLabel", {Text = icon and "" or string.sub(name, 1, 1), Font = THEME.FontBold, TextSize = 12, TextColor3 = THEME.SubText, Size = UDim2.fromOffset(26, 26), Position = UDim2.new(0, -36, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), BackgroundColor3 = THEME.Element, Parent = tab.Button}, {corner(7)})
+	}, {corner(9), create("UIPadding", {PaddingLeft = UDim.new(0, 42)})})
+	tab.Scale = create("UIScale", {Parent = tab.Button})
+	tab.Tile = create("TextLabel", {Text = icon and "" or string.sub(name, 1, 1), Font = THEME.FontBold, TextSize = 12, TextColor3 = THEME.SubText, Size = UDim2.fromOffset(24, 24), Position = UDim2.new(0, -34, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), BackgroundColor3 = THEME.Element, Parent = tab.Button}, {corner(7)})
+	tab.TileScale = create("UIScale", {Parent = tab.Tile})
 	if icon then
 		tab.Icon = create("ImageLabel", {
 			Image = type(icon) == "number" and ("rbxassetid://" .. icon) or icon,
 			ImageColor3 = self.TintIcons and THEME.SubText or Color3.new(1, 1, 1),
-			BackgroundTransparency = 1, Size = UDim2.fromOffset(16, 16), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), Parent = tab.Tile,
+			BackgroundTransparency = 1, Size = UDim2.fromOffset(14, 14), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), Parent = tab.Tile,
 		})
 	end
 	tab.Page = create("ScrollingFrame", {
@@ -517,21 +536,43 @@ end
 
 function Library:SelectTab(tab)
 	self.CurrentTab = tab
-	for _, t in ipairs(self.Tabs) do
+	for i, t in ipairs(self.Tabs) do
 		local on = t == tab
 		t.Page.Visible = on
-		tween(t.Button, {BackgroundColor3 = on and THEME.AccentDim or THEME.Element, BackgroundTransparency = on and 0 or 1, TextColor3 = on and THEME.Text or THEME.SubText})
-		tween(t.Button.UIStroke, {Transparency = on and 0.7 or 1})
+		tween(t.Button, {BackgroundTransparency = 1, TextColor3 = on and THEME.Text or THEME.SubText})
 		tween(t.Tile, {BackgroundColor3 = on and THEME.Accent or THEME.Element, TextColor3 = on and THEME.Bg or THEME.SubText})
 		if t.Icon and self.TintIcons then tween(t.Icon, {ImageColor3 = on and THEME.Bg or THEME.SubText}) end
+		if on then
+			-- sliding highlight + icon bounce. Rail position comes from LayoutOrder rank, since pinned tabs sort last regardless of add order.
+			local rank = 0
+			for _, o in ipairs(self.Tabs) do
+				if o.Button.LayoutOrder < t.Button.LayoutOrder then rank += 1 end
+			end
+			self.TabIndicator.Visible = true
+			tween(self.TabIndicator, {Position = UDim2.fromOffset(8, 8 + rank * 39)}, SPRING)
+			t.TileScale.Scale = 1
+			tween(t.TileScale, {Scale = 1.25}, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)).Completed:Connect(function()
+				tween(t.TileScale, {Scale = 1}, SPRING)
+			end)
+		end
 	end
 	tab.Page.Position = UDim2.fromOffset(0, 14)
 	tween(tab.Page, {Position = UDim2.new()}, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out))
+	-- staggered pop-in of the rows
+	local n = 0
+	for _, child in ipairs(tab.Page:GetChildren()) do
+		local sc = child:IsA("GuiObject") and child:FindFirstChildOfClass("UIScale")
+		if sc then
+			n += 1
+			sc.Scale = 0.94
+			task.delay((n - 1) * 0.03, function() tween(sc, {Scale = 1}, SPRING) end)
+		end
+	end
 end
 
 -- element rows -----------------------------------------------------------------
 local function row(tab, height)
-	local f = create("Frame", {Size = UDim2.new(1, 0, 0, height), BackgroundColor3 = THEME.Element, Parent = tab.Page}, {corner(), stroke(Color3.fromRGB(38, 40, 47))})
+	local f = create("Frame", {Size = UDim2.new(1, 0, 0, height), BackgroundColor3 = THEME.Element, Parent = tab.Page}, {corner(), stroke(Color3.fromRGB(38, 40, 47)), create("UIScale", {})})
 	hoverable(f, THEME.Element, THEME.Hover)
 	return f
 end
@@ -573,8 +614,18 @@ function Tab:AddToggle(opts)
 		self.Value = v
 		Library.Flags[self.Flag] = v
 		tween(track, {BackgroundColor3 = v and THEME.Accent or THEME.Stroke})
-		tween(track.UIStroke, {Transparency = v and 0.6 or 1})
 		tween(knob, {Position = v and UDim2.new(1, -21, 0.5, 0) or UDim2.new(0, 3, 0.5, 0)}, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+		-- knob squish + ring pulse when switching on
+		knob.Size = UDim2.fromOffset(22, 14)
+		tween(knob, {Size = UDim2.fromOffset(18, 18)}, TweenInfo.new(0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+		if v then
+			track.UIStroke.Thickness, track.UIStroke.Transparency = 3, 0.4
+			tween(track.UIStroke, {Thickness = 10, Transparency = 1}, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)).Completed:Connect(function()
+				if self.Value then track.UIStroke.Thickness = 3; tween(track.UIStroke, {Transparency = 0.6}) end
+			end)
+		else
+			tween(track.UIStroke, {Transparency = 1})
+		end
 		if not silent then self.Callback(v) end
 	end
 	function el:RefreshBind()
@@ -600,6 +651,10 @@ end
 
 function Library:_openBindPopup(el, name)
 	if self.Popup then self.Popup:Destroy() end
+	if self.PopupBlur then self.PopupBlur:Destroy() end
+	local blur = create("BlurEffect", {Size = 0, Parent = game:GetService("Lighting")})
+	self.PopupBlur = blur
+	tween(blur, {Size = 14}, TweenInfo.new(0.3))
 	local overlay = create("TextButton", {Text = "", AutoButtonColor = false, Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 1, ZIndex = 20, Parent = self.Main}, {corner(12)})
 	self.Popup = overlay
 	tween(overlay, {BackgroundTransparency = 0.45})
@@ -646,6 +701,8 @@ function Library:_openBindPopup(el, name)
 
 	local function close()
 		self.Popup = nil
+		self.PopupBlur = nil
+		tween(blur, {Size = 0}, FAST).Completed:Connect(function() blur:Destroy() end)
 		tween(scale, {Scale = 0.9})
 		tween(overlay, {BackgroundTransparency = 1}).Completed:Wait()
 		overlay:Destroy()
@@ -671,6 +728,7 @@ function Tab:AddSlider(opts)
 	label({Text = opts.Name, Size = UDim2.new(1, -100, 0, 30), Position = UDim2.fromOffset(14, 6), Parent = f})
 	local valueLabel = create("TextLabel", {Text = "", TextSize = 11, TextColor3 = THEME.AccentText, Font = Enum.Font.Code, Size = UDim2.fromOffset(0, 22), AutomaticSize = Enum.AutomaticSize.X, Position = UDim2.new(1, -14, 0, 10), AnchorPoint = Vector2.new(1, 0), BackgroundColor3 = THEME.AccentDim, Parent = f}, {corner(6), stroke(THEME.Accent), padding(0, 8)})
 	valueLabel.UIStroke.Transparency = 0.6
+	local chipScale = create("UIScale", {Parent = valueLabel})
 	local track = create("Frame", {Size = UDim2.new(1, -28, 0, 4), Position = UDim2.new(0, 14, 1, -18), BackgroundColor3 = THEME.Stroke, BorderSizePixel = 0, Parent = f}, {corner(2)})
 	local fill = create("Frame", {Size = UDim2.fromScale(0, 1), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Parent = track}, {corner(2), create("UIGradient", {Color = ColorSequence.new(Color3.fromRGB(201, 70, 58), THEME.Accent)})})
 	local knob = create("Frame", {Size = UDim2.fromOffset(14, 14), Position = UDim2.new(0, 0, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Color3.new(1, 1, 1), Parent = track}, {corner(7), stroke(THEME.Accent, 3)})
@@ -684,6 +742,8 @@ function Tab:AddSlider(opts)
 		tween(fill, {Size = UDim2.fromScale(a, 1)}, TweenInfo.new(0.06))
 		tween(knob, {Position = UDim2.new(a, 0, 0.5, 0)}, TweenInfo.new(0.06))
 		valueLabel.Text = (math.floor(v * 100 + 0.5) / 100) .. (opts.Suffix or "")
+		chipScale.Scale = 1.12
+		tween(chipScale, {Scale = 1}, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
 		if not silent then self.Callback(v) end
 	end
 
@@ -700,14 +760,18 @@ function Tab:AddSlider(opts)
 end
 
 function Tab:AddButton(opts)
-	local f = row(self, 38)
-	local btn = create("TextButton", {Text = opts.Name, Font = THEME.Font, TextSize = 14, TextColor3 = THEME.Text, AutoButtonColor = false, BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Parent = f})
-	local scale = create("UIScale", {Parent = f})
+	local f = row(self, 42)
+	f.ClipsDescendants = true
+	local btn = create("TextButton", {Text = opts.Name, Font = THEME.FontBold, TextSize = 13, TextColor3 = THEME.Text, AutoButtonColor = false, BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 2, Parent = f})
+	local scale = f:FindFirstChildOfClass("UIScale")
 	btn.MouseButton1Click:Connect(function()
+		-- ripple from the click point
+		local m = UIS:GetMouseLocation() - f.AbsolutePosition
+		local r = create("Frame", {Size = UDim2.new(), Position = UDim2.fromOffset(m.X, m.Y), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = THEME.Accent, BackgroundTransparency = 0.45, BorderSizePixel = 0, ZIndex = 1, Parent = f}, {create("UICorner", {CornerRadius = UDim.new(1, 0)})})
+		local d = f.AbsoluteSize.X * 2.2
+		tween(r, {Size = UDim2.fromOffset(d, d), BackgroundTransparency = 1}, TweenInfo.new(0.55, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)).Completed:Connect(function() r:Destroy() end)
 		scale.Scale = 0.97
 		tween(scale, {Scale = 1}, SPRING)
-		tween(f, {BackgroundColor3 = THEME.Accent}, TweenInfo.new(0.05)).Completed:Wait()
-		tween(f, {BackgroundColor3 = THEME.Hover}, TweenInfo.new(0.3))
 		if opts.Callback then opts.Callback() end
 	end)
 	return f
