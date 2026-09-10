@@ -230,7 +230,7 @@ local Library = {
 	Flags = {},      -- flag -> current value
 	Elements = {},   -- flag -> element object (has :Set)
 	Binds = {},      -- flag -> {Key = Enum.KeyCode, Mode = "Always"|"Toggle"|"Hold"}
-	MenuKey = Enum.KeyCode.RightShift,
+	MenuKey = Enum.KeyCode.Insert,
 	Storage = Storage,
 	Theme = THEME,
 	Connect = connect,
