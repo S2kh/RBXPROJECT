@@ -5,32 +5,7 @@
 ]]
 
 -- ---------------------------------------------------------------- loader
--- The repo is private, so raw.githubusercontent.com needs a token. Make a fine-grained PAT with
--- "Contents: read" on this repo only, and paste it below. If the repo is ever made public, the
--- plain game:HttpGet line works and the token can go.
-local REPO_RAW = "https://raw.githubusercontent.com/S2kh/RBXPROJECT/main/Main.lua"
-local TOKEN    = "PASTE_FINE_GRAINED_PAT_HERE"
-
-local function fetchLibrary()
-	local body
-	if TOKEN ~= "PASTE_FINE_GRAINED_PAT_HERE" then
-		local req = request or http_request or (syn and syn.request) or (http and http.request)
-		assert(req, "this executor has no request function, so the auth header can't be sent")
-		local res = req({Url = REPO_RAW, Method = "GET", Headers = {Authorization = "token " .. TOKEN, ["Cache-Control"] = "no-cache"}})
-		assert(res and res.StatusCode == 200, ("library fetch failed (HTTP %s). Check the token has Contents read on the repo."):format(tostring(res and res.StatusCode)))
-		body = res.Body
-	else
-		local ok, res = pcall(game.HttpGet, game, REPO_RAW)
-		assert(ok, "library fetch failed: " .. tostring(res))
-		body = res
-	end
-	assert(type(body) == "string" and not body:match("^%s*404"), "GitHub returned 404. The repo is private, so TOKEN must be set to a fine-grained PAT with Contents read.")
-	return body
-end
-
-local libraryFn, compileErr = loadstring(fetchLibrary())
-assert(libraryFn, "library failed to compile: " .. tostring(compileErr))
-local Library = libraryFn()
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/S2kh/RBXPROJECT/main/Main.lua"))()
 
 -- ---------------------------------------------------------------- window
 local Players    = game:GetService("Players")

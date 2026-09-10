@@ -8,7 +8,7 @@ Roblox executor UI library. `Main.lua` is the library and nothing else. A caller
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/S2kh/RBXPROJECT/main/Main.lua"))()
 ```
 
-The repo is private, so the plain `HttpGet` line only works if the repo goes public. For a private fetch use `request` with a fine-grained PAT that has read access to Contents on this repo. `Example.lua` has the loader.
+That one line is the whole loader. `Example.lua` shows a complete caller built on top of it.
 
 ## Window
 
