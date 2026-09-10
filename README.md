@@ -76,3 +76,9 @@ Stored as `<Folder>/configs/<name>.json` in the executor workspace. `<Folder>/au
 ## Re-execution
 
 Running a caller script again unloads the previous window first, so there is never more than one menu.
+
+## Scripts
+
+| Script | Loader |
+|---|---|
+| Blade Ball auto parry | `loadstring(game:HttpGet("https://raw.githubusercontent.com/S2kh/RBXPROJECT/main/scripts/BladeBall.lua"))()` |
