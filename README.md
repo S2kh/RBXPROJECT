@@ -19,7 +19,7 @@ local Window = Library.new({
     TintIcons = true,          -- recolour icons to the theme (white/mono PNGs). false for full-colour icons
     Settings  = true,          -- pinned UI Settings tab (menu key, unload)
     Config    = true,          -- pinned Config tab (new/load/save/delete/autoload)
-    MenuKey   = Enum.KeyCode.RightShift,
+    MenuKey   = Enum.KeyCode.Insert,
 })
 ```
 
