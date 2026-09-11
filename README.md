@@ -51,12 +51,14 @@ Tab:AddLabel("Some text")                        -- returns {Set = fn}
 Tab:AddToggle({Name, Flag, Default, Callback})   -- right-click for keybind (Always / Toggle / Hold)
 Tab:AddSlider({Name, Flag, Min, Max, Default, Step, Suffix, Callback})
 Tab:AddButton({Name, Callback})
-Tab:AddDropdown({Name, Flag, Options, Default, Callback})   -- el:SetOptions(list) swaps options
+Tab:AddDropdown({Name, Flag, Options, Default, Callback, Search, MaxVisible})   -- el:SetOptions(list) swaps options
 Tab:AddTextbox({Name, Flag, Default, Placeholder, Callback})
 Tab:AddKeybind({Name, Flag, Default = Enum.KeyCode, Callback})   -- hidden on mobile
 ```
 
 Elements return an object with `:Set(value, silent)`. Read current values from `Library.Flags.<Flag>` or drive an element with `Library.Elements.<Flag>:Set(v)`.
+
+Dropdown lists scroll after `MaxVisible` rows (default 8). `Search = true` adds a filter box for long lists such as item catalogues; a filtered list renders at most `MaxRender` rows (default 60) and says how many more are hidden.
 
 ## Helpers
 
@@ -81,4 +83,6 @@ Running a caller script again unloads the previous window first, so there is nev
 
 | Script | Loader |
 |---|---|
-| Blade Ball auto parry | `loadstring(game:HttpGet("https://raw.githubusercontent.com/S2kh/RBXPROJECT/main/scripts/BladeBall.lua"))()` |
+| Blade Ball: auto parry, sword and explosion skins, emote unlock | `loadstring(game:HttpGet("https://raw.githubusercontent.com/S2kh/RBXPROJECT/main/scripts/BladeBall.lua"))()` |
+
+The Blade Ball cosmetics are client-side only. They wrap the game's own controller tables (sword controller, VFX controller, emote controller, inventory client) so the game renders the swap itself. Emote wheel slot assignments are saved to `BladeBall/emote_wheel.json`.

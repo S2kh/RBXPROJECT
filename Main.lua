@@ -13,7 +13,7 @@
 	Pass Settings = false / Config = false to Library.new to leave one out.
 
 	Elements: Tab, Section, Toggle (right-click → keybind: Always / Toggle / Hold), Slider, Button,
-	          Dropdown (with :SetOptions), Textbox, Keybind, Label, Notify.
+	          Dropdown (with :SetOptions; Search = true for long lists), Textbox, Keybind, Label, Notify.
 	Mobile:   no keybinds; hiding the menu shows a draggable floating icon that reopens it.
 	PC:       hiding shows a notification "Press <MenuKey> to open the menu".
 
@@ -778,20 +778,40 @@ function Tab:AddButton(opts)
 end
 
 -- Dropdown. el:SetOptions(list) swaps the option set at runtime (player lists, etc).
+-- The open list scrolls past MaxVisible rows (default 8). Search = true adds a filter box for long lists; a
+-- filtered list renders at most MaxRender rows (default 60) and says how many more the filter is hiding.
 function Tab:AddDropdown(opts)
 	opts.Options = opts.Options or {}
+	local ROW, GAP = 28, 2
+	local maxVisible = opts.MaxVisible or 8
+	local maxRender  = opts.MaxRender or 60
 	local el = {Type = "Dropdown", Value = opts.Default or opts.Options[1] or ""}
 	register(el, opts)
 	local f = row(self, 42)
 	f.ClipsDescendants = true
 	local hit = create("TextButton", {Text = "", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 42), Parent = f})
 	label({Text = opts.Name, Size = UDim2.new(0.5, 0, 0, 42), Position = UDim2.fromOffset(14, 0), Parent = f})
-	local valueLabel = label({Text = "", TextSize = 13, TextColor3 = THEME.SubText, TextXAlignment = Enum.TextXAlignment.Right, Size = UDim2.new(0.5, -40, 0, 42), Position = UDim2.new(1, -36, 0, 0), AnchorPoint = Vector2.new(1, 0), Parent = f})
+	local valueLabel = label({Text = "", TextSize = 13, TextColor3 = THEME.SubText, TextXAlignment = Enum.TextXAlignment.Right, TextTruncate = Enum.TextTruncate.AtEnd, Size = UDim2.new(0.5, -40, 0, 42), Position = UDim2.new(1, -36, 0, 0), AnchorPoint = Vector2.new(1, 0), Parent = f})
 	local arrow = label({Text = "v", Font = THEME.FontBold, TextSize = 12, TextColor3 = THEME.SubText, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.fromOffset(20, 42), Position = UDim2.new(1, -12, 0, 0), AnchorPoint = Vector2.new(1, 0), Parent = f})
-	local listFrame = create("Frame", {Size = UDim2.new(1, -20, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Position = UDim2.fromOffset(10, 44), BackgroundTransparency = 1, Parent = f}, {list(2)})
+	local listFrame = create("Frame", {Size = UDim2.new(1, -20, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Position = UDim2.fromOffset(10, 44), BackgroundTransparency = 1, Parent = f}, {list(4)})
+	local search
+	if opts.Search then
+		search = create("TextBox", {Text = "", PlaceholderText = "Search…", PlaceholderColor3 = THEME.SubText, Font = THEME.Font, TextSize = 13, TextColor3 = THEME.Text, TextXAlignment = Enum.TextXAlignment.Left, ClearTextOnFocus = false, Size = UDim2.new(1, 0, 0, ROW), BackgroundColor3 = THEME.Bg, LayoutOrder = 1, Parent = listFrame}, {corner(6), stroke(), padding(0, 8)})
+	end
+	local scroll = create("ScrollingFrame", {Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4, ScrollBarImageColor3 = THEME.Stroke, CanvasSize = UDim2.new(), AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y, LayoutOrder = 2, Parent = listFrame}, {list(GAP)})
 	local open = false
-	local optionBtns = {}
+	local optionBtns, rendered = {}, 0
+	local more
 
+	local function listHeight()
+		local rows = math.min(rendered, maxVisible)
+		return rows * ROW + math.max(rows - 1, 0) * GAP
+	end
+	local function resize()
+		local h = 42
+		if open then h = 42 + (search and ROW + 4 or 0) + listHeight() + 8 end
+		tween(f, {Size = UDim2.new(1, 0, 0, h)}, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out))
+	end
 	function el:Set(v, silent)
 		self.Value = v
 		Library.Flags[self.Flag] = v
@@ -801,19 +821,36 @@ function Tab:AddDropdown(opts)
 	end
 	local function setOpen(o)
 		open = o
-		tween(f, {Size = UDim2.new(1, 0, 0, o and 42 + #opts.Options * 30 + 8 or 42)}, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out))
+		resize()
 		tween(arrow, {Rotation = o and 180 or 0})
 	end
 	local function build()
 		for _, b in pairs(optionBtns) do b:Destroy() end
 		optionBtns = {}
-		for _, option in ipairs(opts.Options) do
-			local b = create("TextButton", {Text = tostring(option), Font = THEME.Font, TextSize = 13, TextColor3 = option == el.Value and THEME.Accent or THEME.Text, TextXAlignment = Enum.TextXAlignment.Left, AutoButtonColor = false, Size = UDim2.new(1, 0, 0, 28), BackgroundColor3 = THEME.Rail, Parent = listFrame}, {corner(6), padding(0, 10)})
-			hoverable(b, THEME.Rail, THEME.Hover)
-			optionBtns[option] = b
-			b.MouseButton1Click:Connect(function() el:Set(option); setOpen(false) end)
+		if more then more:Destroy(); more = nil end
+		local q = search and string.lower(search.Text) or ""
+		local matched = 0
+		rendered = 0
+		for i, option in ipairs(opts.Options) do
+			local text = tostring(option)
+			if q == "" or string.find(string.lower(text), q, 1, true) then
+				matched += 1
+				if matched <= maxRender then
+					rendered += 1
+					local b = create("TextButton", {Text = text, Font = THEME.Font, TextSize = 13, TextColor3 = option == el.Value and THEME.Accent or THEME.Text, TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd, AutoButtonColor = false, Size = UDim2.new(1, -6, 0, ROW), BackgroundColor3 = THEME.Rail, LayoutOrder = i, Parent = scroll}, {corner(6), padding(0, 10)})
+					hoverable(b, THEME.Rail, THEME.Hover)
+					optionBtns[option] = b
+					b.MouseButton1Click:Connect(function() el:Set(option); setOpen(false) end)
+				end
+			end
 		end
-		if open then setOpen(true) end
+		if matched > rendered then
+			rendered += 1
+			more = label({Text = ("%d more, keep typing"):format(matched - (rendered - 1)), TextSize = 11, TextColor3 = THEME.SubText, Size = UDim2.new(1, -6, 0, ROW), LayoutOrder = #opts.Options + 1, Parent = scroll})
+		end
+		scroll.Size = UDim2.new(1, 0, 0, listHeight())
+		scroll.CanvasPosition = Vector2.zero
+		if open then resize() end
 	end
 	function el:SetOptions(options, silent)
 		opts.Options = options or {}
@@ -821,6 +858,7 @@ function Tab:AddDropdown(opts)
 		if not table.find(opts.Options, self.Value) then self:Set(opts.Options[1] or "", silent) end
 	end
 	build()
+	if search then search:GetPropertyChangedSignal("Text"):Connect(build) end
 	hit.MouseButton1Click:Connect(function() setOpen(not open) end)
 	el:Set(el.Value, true)
 	return el
