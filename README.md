@@ -78,11 +78,3 @@ Stored as `<Folder>/configs/<name>.json` in the executor workspace. `<Folder>/au
 ## Re-execution
 
 Running a caller script again unloads the previous window first, so there is never more than one menu.
-
-## Scripts
-
-| Script | Loader |
-|---|---|
-| Blade Ball: auto parry, sword and explosion skins, emote unlock | `loadstring(game:HttpGet("https://raw.githubusercontent.com/S2kh/RBXPROJECT/main/scripts/BladeBall.lua"))()` |
-
-The Blade Ball cosmetics are client-side only. They wrap the game's own controller tables (sword controller, VFX controller, emote controller, inventory client) so the game renders the swap itself. Emote wheel slot assignments are saved to `BladeBall/emote_wheel.json`.
