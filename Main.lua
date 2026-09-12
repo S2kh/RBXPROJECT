@@ -256,6 +256,8 @@ function Library.new(opts)
 	opts = opts or {}
 	local self = setmetatable({Tabs = {}, Visible = true, Listening = false, TintIcons = opts.TintIcons ~= false, _unloadCallbacks = {}}, Library)
 	if opts.MenuKey then Library.MenuKey = opts.MenuKey end
+	self.AutoSave = opts.AutoSave == true
+	Library._window = self
 	Storage.init(opts.Folder)
 
 	self.Gui = create("ScreenGui", {
@@ -577,6 +579,21 @@ local function row(tab, height)
 	return f
 end
 
+-- Autosave: with Library.new({AutoSave = true}), every flag or bind change writes the active config a
+-- moment later (debounced), so nothing is lost to a forgotten Save. Nothing is written while a config is
+-- being applied, and nothing until a config has been loaded or saved once, which makes it the active one.
+local autosaveToken = 0
+local function touch()
+	local w = Library._window
+	if not (w and w.AutoSave and w.ActiveConfig) or w._applying then return end
+	autosaveToken += 1
+	local token = autosaveToken
+	task.delay(0.8, function()
+		if token ~= autosaveToken then return end
+		if w.AutoSave and w.ActiveConfig and not w._applying then Storage.save(w.ActiveConfig, w:Serialize()) end
+	end)
+end
+
 local function register(el, opts)
 	el.Flag = opts.Flag or opts.Name
 	el.Default = el.Value
@@ -613,6 +630,7 @@ function Tab:AddToggle(opts)
 	function el:Set(v, silent)
 		self.Value = v
 		Library.Flags[self.Flag] = v
+		touch()
 		tween(track, {BackgroundColor3 = v and THEME.Accent or THEME.Stroke})
 		tween(knob, {Position = v and UDim2.new(1, -21, 0.5, 0) or UDim2.new(0, 3, 0.5, 0)}, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
 		-- knob squish + ring pulse when switching on
@@ -683,6 +701,7 @@ function Library:_openBindPopup(el, name)
 		else
 			Library.Binds[el.Flag] = nil
 		end
+		touch()
 		el:RefreshBind()
 	end
 	for _, mode in ipairs({"Always", "Toggle", "Hold"}) do
@@ -738,6 +757,7 @@ function Tab:AddSlider(opts)
 		v = math.clamp(math.floor((v - min) / step + 0.5) * step + min, min, max)
 		self.Value = v
 		Library.Flags[self.Flag] = v
+		touch()
 		local a = (v - min) / (max - min)
 		tween(fill, {Size = UDim2.fromScale(a, 1)}, TweenInfo.new(0.06))
 		tween(knob, {Position = UDim2.new(a, 0, 0.5, 0)}, TweenInfo.new(0.06))
@@ -815,6 +835,7 @@ function Tab:AddDropdown(opts)
 	function el:Set(v, silent)
 		self.Value = v
 		Library.Flags[self.Flag] = v
+		touch()
 		valueLabel.Text = tostring(v)
 		for name, b in pairs(optionBtns) do tween(b, {TextColor3 = name == v and THEME.Accent or THEME.Text}) end
 		if not silent then self.Callback(v) end
@@ -870,7 +891,7 @@ function Tab:AddTextbox(opts)
 	local f = row(self, 42)
 	label({Text = opts.Name, Size = UDim2.new(0.45, 0, 1, 0), Position = UDim2.fromOffset(14, 0), Parent = f})
 	local box = create("TextBox", {Text = el.Value, PlaceholderText = opts.Placeholder or "", PlaceholderColor3 = THEME.SubText, Font = THEME.Font, TextSize = 13, TextColor3 = THEME.Text, ClearTextOnFocus = false, Size = UDim2.new(0.55, -26, 0, 28), Position = UDim2.new(1, -12, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = THEME.Bg, Parent = f}, {corner(6), stroke(), padding(0, 8)})
-	function el:Set(v, silent) self.Value = v; Library.Flags[self.Flag] = v; box.Text = v; if not silent then self.Callback(v) end end
+	function el:Set(v, silent) self.Value = v; Library.Flags[self.Flag] = v; touch(); box.Text = v; if not silent then self.Callback(v) end end
 	box.FocusLost:Connect(function() el:Set(box.Text) end)
 	box.Focused:Connect(function() tween(box.UIStroke, {Color = THEME.Accent}) end)
 	box.FocusLost:Connect(function() tween(box.UIStroke, {Color = THEME.Stroke}) end)
@@ -892,6 +913,7 @@ function Tab:AddKeybind(opts)
 	function el:Set(v, silent)
 		self.Value = v
 		Library.Flags[self.Flag] = v
+		touch()
 		btn.Text = v
 		if not silent then self.Callback(toKeyCode(v)) end
 	end
@@ -910,6 +932,7 @@ function Library:Serialize()
 end
 
 function Library:Apply(data)
+	self._applying = true
 	for flag, v in pairs(data.flags or {}) do
 		local el = Library.Elements[flag]
 		if el and el.Type ~= "Keybind" then el:Set(v) end
@@ -923,6 +946,7 @@ function Library:Apply(data)
 		if el.Type == "Keybind" and data.flags and data.flags[el.Flag] then el:Set(data.flags[el.Flag]) end
 	end
 	if data.menuKey and toKeyCode(data.menuKey) then self:SetMenuKey(toKeyCode(data.menuKey)) end
+	self._applying = false
 end
 
 -- Call once after every tab is built. Applies the autoload config if one is set.
@@ -949,6 +973,7 @@ function Library:AddConfigTab(name, icon)
 	})
 	tab:AddSection("Saved configs")
 	tab:AddLabel(HAS_FS and ("Stored in " .. Storage.Folder .. "/configs") or "No file API detected: configs live in memory for this session only.")
+	if self.AutoSave then tab:AddLabel("Changes save to the active config on their own. Load or save a config once to make it the active one.") end
 	local autoloadLabel = tab:AddLabel("")
 	local listHolder = create("Frame", {Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = tab.Page}, {list(4)})
 	local empty = label({Text = "No configs yet.", TextSize = 13, TextColor3 = THEME.SubText, Size = UDim2.new(1, 0, 0, 24), Parent = listHolder})

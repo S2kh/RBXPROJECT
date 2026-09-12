@@ -16,6 +16,7 @@ That one line is the whole loader. `Example.lua` shows a complete caller built o
 local Window = Library.new({
     Title     = "My Script",   -- title bar
     Folder    = "MyScript",    -- workspace folder for configs
+    AutoSave  = true,          -- write the active config on every change (off by default)
     TintIcons = true,          -- recolour icons to the theme (white/mono PNGs). false for full-colour icons
     Settings  = true,          -- pinned UI Settings tab (menu key, unload)
     Config    = true,          -- pinned Config tab (new/load/save/delete/autoload)
@@ -73,7 +74,7 @@ Dropdown lists scroll after `MaxVisible` rows (default 8). `Search = true` adds 
 
 ## Configs
 
-Stored as `<Folder>/configs/<name>.json` in the executor workspace. `<Folder>/autoload.txt` names the config to apply on inject. Falls back to session memory when the executor has no file API.
+Stored as `<Folder>/configs/<name>.json` in the executor workspace. `<Folder>/autoload.txt` names the config to apply on inject. Falls back to session memory when the executor has no file API. With `AutoSave = true`, every flag or keybind change writes the active config after a short debounce; a config becomes active when it is loaded, saved, or auto-loaded, and nothing is written while one is being applied.
 
 ## Re-execution
 
