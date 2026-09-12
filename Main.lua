@@ -13,7 +13,7 @@
 	Pass Settings = false / Config = false to Library.new to leave one out.
 
 	Elements: Tab, Section, Toggle (right-click → keybind: Always / Toggle / Hold), Slider, Button,
-	          Dropdown (with :SetOptions; Search = true for long lists), Textbox, Keybind, Label, Notify.
+	          Dropdown (with :SetOptions; Search = true for long lists), Textbox, ColorPicker, Keybind, Label, Notify.
 	Mobile:   no keybinds; hiding the menu shows a draggable floating icon that reopens it.
 	PC:       hiding shows a notification "Press <MenuKey> to open the menu".
 
@@ -110,6 +110,18 @@ end
 local function toKeyCode(name)
 	local ok, key = pcall(function() return Enum.KeyCode[name] end)
 	return ok and key or nil
+end
+local function toHex(c)
+	return ("#%02X%02X%02X"):format(math.floor(c.R * 255 + 0.5), math.floor(c.G * 255 + 0.5), math.floor(c.B * 255 + 0.5))
+end
+local function fromHex(s)
+	if typeof(s) == "Color3" then return s end
+	if type(s) ~= "string" then return nil end
+	local h = s:gsub("^%s*#?", ""):gsub("%s+$", "")
+	if #h == 3 then h = h:gsub(".", "%0%0") end
+	if #h ~= 6 or not h:match("^%x+$") then return nil end
+	local n = tonumber(h, 16)
+	return Color3.fromRGB(math.floor(n / 65536) % 256, math.floor(n / 256) % 256, n % 256)
 end
 local function isPress(input)
 	return input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch
@@ -898,6 +910,95 @@ function Tab:AddTextbox(opts)
 	return el
 end
 
+-- Colour picker. The row shows a swatch; it opens to a saturation/value square, a hue bar and a hex box.
+-- Value is a Color3 at runtime (Library.Flags too); configs store it as "#RRGGBB". Default may be either.
+function Tab:AddColorPicker(opts)
+	local el = {Type = "ColorPicker", Value = fromHex(opts.Default) or Color3.new(1, 1, 1)}
+	register(el, opts)
+	local SQ, BAR, BOX = 120, 14, 28
+	local bodyH = SQ + 8 + BAR + 8 + BOX
+	local f = row(self, 42)
+	f.ClipsDescendants = true
+	local hit = create("TextButton", {Text = "", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 42), Parent = f})
+	label({Text = opts.Name, Size = UDim2.new(1, -120, 0, 42), Position = UDim2.fromOffset(14, 0), Parent = f})
+	local swatch = create("Frame", {Size = UDim2.fromOffset(42, 22), Position = UDim2.new(1, -14, 0, 10), AnchorPoint = Vector2.new(1, 0), BackgroundColor3 = el.Value, Parent = f}, {corner(6), stroke(Color3.fromRGB(62, 64, 74))})
+	local body = create("Frame", {Size = UDim2.new(1, -28, 0, bodyH), Position = UDim2.fromOffset(14, 48), BackgroundTransparency = 1, Visible = false, Parent = f})
+	-- saturation/value square: the hue underneath, white fading out left to right, black fading in top to bottom
+	local sv = create("Frame", {Size = UDim2.new(1, 0, 0, SQ), BackgroundColor3 = Color3.new(1, 0, 0), BorderSizePixel = 0, Parent = body}, {corner(6)})
+	create("Frame", {Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, ZIndex = 2, Parent = sv}, {corner(6),
+		create("UIGradient", {Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1)})})})
+	create("Frame", {Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.new(0, 0, 0), BorderSizePixel = 0, ZIndex = 3, Parent = sv}, {corner(6),
+		create("UIGradient", {Rotation = 90, Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 0)})})})
+	local svCursor = create("Frame", {Size = UDim2.fromOffset(12, 12), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, ZIndex = 4, Parent = sv}, {corner(6), stroke(Color3.new(1, 1, 1), 2)})
+	-- hue bar
+	local hueStops = {}
+	for i = 0, 6 do table.insert(hueStops, ColorSequenceKeypoint.new(i / 6, Color3.fromHSV((i % 6) / 6, 1, 1))) end
+	local hue = create("Frame", {Size = UDim2.new(1, 0, 0, BAR), Position = UDim2.fromOffset(0, SQ + 8), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Parent = body}, {corner(6),
+		create("UIGradient", {Color = ColorSequence.new(hueStops)})})
+	local hueCursor = create("Frame", {Size = UDim2.new(0, 4, 1, 4), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0, 0, 0.5, 0), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, ZIndex = 2, Parent = hue}, {corner(2), stroke(Color3.fromRGB(20, 20, 24), 1)})
+	-- hex box and readout
+	local box = create("TextBox", {Text = toHex(el.Value), PlaceholderText = "#RRGGBB", PlaceholderColor3 = THEME.SubText, Font = Enum.Font.Code, TextSize = 13, TextColor3 = THEME.Text, ClearTextOnFocus = false, Size = UDim2.fromOffset(110, BOX), Position = UDim2.fromOffset(0, SQ + 8 + BAR + 8), BackgroundColor3 = THEME.Bg, Parent = body}, {corner(6), stroke(), padding(0, 8)})
+	local rgbLabel = label({Text = "", TextSize = 12, TextColor3 = THEME.SubText, Size = UDim2.new(1, -120, 0, BOX), Position = UDim2.fromOffset(120, SQ + 8 + BAR + 8), Parent = body})
+
+	local h, s, v = el.Value:ToHSV()
+	local open = false
+	local function paint()
+		sv.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+		svCursor.Position = UDim2.fromScale(s, 1 - v)
+		hueCursor.Position = UDim2.new(h, 0, 0.5, 0)
+		swatch.BackgroundColor3 = el.Value
+		if not box:IsFocused() then box.Text = toHex(el.Value) end
+		rgbLabel.Text = ("%d, %d, %d"):format(math.floor(el.Value.R * 255 + 0.5), math.floor(el.Value.G * 255 + 0.5), math.floor(el.Value.B * 255 + 0.5))
+	end
+	function el:Set(c, silent)
+		c = fromHex(c) or self.Value
+		self.Value = c
+		Library.Flags[self.Flag] = c
+		touch()
+		local nh, ns, nv = c:ToHSV()
+		if ns > 0 and nv > 0 then h = nh end   -- a grey keeps the last hue so the square does not jump
+		s, v = ns, nv
+		paint()
+		if not silent then self.Callback(c) end
+	end
+	local function fromState() el:Set(Color3.fromHSV(h, s, v)) end
+	local function setOpen(o)
+		open = o
+		body.Visible = true
+		tween(f, {Size = UDim2.new(1, 0, 0, o and (42 + bodyH + 12) or 42)}, TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out))
+		if not o then task.delay(0.2, function() if not open then body.Visible = false end end) end
+	end
+	-- dragging on the square and the bar; the move is read globally so the pointer may leave the control
+	local dragging = nil
+	local function readSV(pos)
+		local a, sz = sv.AbsolutePosition, sv.AbsoluteSize
+		s = math.clamp((pos.X - a.X) / math.max(sz.X, 1), 0, 1)
+		v = 1 - math.clamp((pos.Y - a.Y) / math.max(sz.Y, 1), 0, 1)
+		fromState()
+	end
+	local function readHue(pos)
+		local a, sz = hue.AbsolutePosition, hue.AbsoluteSize
+		h = math.clamp((pos.X - a.X) / math.max(sz.X, 1), 0, 0.999)
+		fromState()
+	end
+	sv.InputBegan:Connect(function(i) if isPress(i) then dragging = "sv"; readSV(i.Position) end end)
+	hue.InputBegan:Connect(function(i) if isPress(i) then dragging = "hue"; readHue(i.Position) end end)
+	connect(UIS.InputChanged, function(i)
+		if not dragging or not isMove(i) then return end
+		if dragging == "sv" then readSV(i.Position) else readHue(i.Position) end
+	end)
+	connect(UIS.InputEnded, function(i) if isPress(i) then dragging = nil end end)
+	box.FocusLost:Connect(function()
+		local c = fromHex(box.Text)
+		if c then el:Set(c) else box.Text = toHex(el.Value) end
+	end)
+	box.Focused:Connect(function() tween(box.UIStroke, {Color = THEME.Accent}) end)
+	box.FocusLost:Connect(function() tween(box.UIStroke, {Color = THEME.Stroke}) end)
+	hit.MouseButton1Click:Connect(function() setOpen(not open) end)
+	paint()
+	return el
+end
+
 -- A standalone keybind row (e.g. the menu open/close key). Hidden on mobile.
 function Tab:AddKeybind(opts)
 	local window = self.Window
@@ -928,14 +1029,16 @@ end
 function Library:Serialize()
 	local binds = {}
 	for flag, b in pairs(Library.Binds) do binds[flag] = {Key = b.Key.Name, Mode = b.Mode} end
-	return {flags = Library.Flags, binds = binds, menuKey = Library.MenuKey.Name}
+	local flags = {}
+	for flag, v in pairs(Library.Flags) do flags[flag] = (typeof(v) == "Color3") and toHex(v) or v end
+	return {flags = flags, binds = binds, menuKey = Library.MenuKey.Name}
 end
 
 function Library:Apply(data)
 	self._applying = true
 	for flag, v in pairs(data.flags or {}) do
 		local el = Library.Elements[flag]
-		if el and el.Type ~= "Keybind" then el:Set(v) end
+		if el and el.Type ~= "Keybind" then el:Set(el.Type == "ColorPicker" and (fromHex(v) or el.Value) or v) end
 	end
 	Library.Binds = {}
 	for flag, b in pairs(data.binds or {}) do

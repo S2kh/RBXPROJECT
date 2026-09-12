@@ -54,6 +54,7 @@ Tab:AddSlider({Name, Flag, Min, Max, Default, Step, Suffix, Callback})
 Tab:AddButton({Name, Callback})
 Tab:AddDropdown({Name, Flag, Options, Default, Callback, Search, MaxVisible})   -- el:SetOptions(list) swaps options
 Tab:AddTextbox({Name, Flag, Default, Placeholder, Callback})
+Tab:AddColorPicker({Name, Flag, Default = Color3 or "#RRGGBB", Callback})   -- Value is a Color3; saved in configs as hex
 Tab:AddKeybind({Name, Flag, Default = Enum.KeyCode, Callback})   -- hidden on mobile
 ```
 

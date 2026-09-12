@@ -61,6 +61,7 @@ Visuals:AddToggle({Name = "Box ESP", Flag = "BoxESP", Callback = function(v) pri
 Visuals:AddDropdown({Name = "Box colour", Flag = "BoxColour", Options = {"Red", "Green", "Blue"}})
 Visuals:AddSlider({Name = "Max distance", Flag = "ESPDistance", Min = 50, Max = 2000, Default = 500, Step = 50, Suffix = " studs"})
 Visuals:AddTextbox({Name = "Custom label", Flag = "ESPLabel", Placeholder = "optional"})
+Visuals:AddColorPicker({Name = "ESP colour", Flag = "ESPColor", Default = "#FF6B57", Callback = function(c) print("colour", c) end})
 Visuals:AddButton({Name = "Notify test", Callback = function() Window:Notify("Visuals", "Button pressed.") end})
 
 -- Read any element's current value from Library.Flags, or drive it with Library.Elements.Flag:Set(v).
