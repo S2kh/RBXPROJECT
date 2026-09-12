@@ -62,6 +62,13 @@ Visuals:AddDropdown({Name = "Box colour", Flag = "BoxColour", Options = {"Red", 
 Visuals:AddSlider({Name = "Max distance", Flag = "ESPDistance", Min = 50, Max = 2000, Default = 500, Step = 50, Suffix = " studs"})
 Visuals:AddTextbox({Name = "Custom label", Flag = "ESPLabel", Placeholder = "optional"})
 Visuals:AddColorPicker({Name = "ESP colour", Flag = "ESPColor", Default = "#FF6B57", Callback = function(c) print("colour", c) end})
+
+-- sub-tabs: a horizontal bar inside the tab, each with its own page
+local World = Window:AddTab("World")
+local Players_ = World:AddSubTab("Players")
+Players_:AddToggle({Name = "Name tags", Flag = "NameTags", Default = true})
+local Map = World:AddSubTab("Map")
+Map:AddSlider({Name = "Fog", Flag = "Fog", Min = 0, Max = 100, Default = 0, Suffix = "%"})
 Visuals:AddButton({Name = "Notify test", Callback = function() Window:Notify("Visuals", "Button pressed.") end})
 
 -- Read any element's current value from Library.Flags, or drive it with Library.Elements.Flag:Set(v).

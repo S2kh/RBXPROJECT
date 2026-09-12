@@ -29,6 +29,8 @@ UI Settings and Config are built by the library and always sit at the bottom of 
 | Method | What it does |
 |---|---|
 | `Window:AddTab(name, icon)` | New tab. `icon` is an asset id number, an `rbxassetid://` string, or nil for a letter tile |
+| `Tab:AddSubTab(name)` | Horizontal sub-tab inside a tab. Returns a tab: every element method works on it. The bar appears on the first call and the first sub-tab is selected |
+| `Tab:SelectSubTab(sub)` | Switch sub-tab from code |
 | `Window:Notify(title, body, seconds)` | Toast in the bottom-right corner |
 | `Window:SetVisible(bool)` | Show or hide the menu |
 | `Window:SetMenuKey(Enum.KeyCode)` | Change the open/close key |

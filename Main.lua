@@ -14,6 +14,7 @@
 
 	Elements: Tab, Section, Toggle (right-click → keybind: Always / Toggle / Hold), Slider, Button,
 	          Dropdown (with :SetOptions; Search = true for long lists), Textbox, ColorPicker, Keybind, Label, Notify.
+	          Tabs can hold horizontal sub-tabs (Tab:AddSubTab); a sub-tab takes the same elements a tab does.
 	Mobile:   no keybinds; hiding the menu shows a draggable floating icon that reopens it.
 	PC:       hiding shows a notification "Press <MenuKey> to open the menu".
 
@@ -575,6 +576,54 @@ function Library:SelectTab(tab)
 	-- staggered pop-in of the rows
 	local n = 0
 	for _, child in ipairs(tab.Page:GetChildren()) do
+		local sc = child:IsA("GuiObject") and child:FindFirstChildOfClass("UIScale")
+		if sc then
+			n += 1
+			sc.Scale = 0.94
+			task.delay((n - 1) * 0.03, function() tween(sc, {Scale = 1}, SPRING) end)
+		end
+	end
+end
+
+-- sub-tabs ---------------------------------------------------------------------
+-- A horizontal bar inside a tab, each button holding its own page of elements. The bar is created on the
+-- first call and always sits at the top of the tab. A sub-tab is a Tab, so every Add* method works on it.
+function Tab:AddSubTab(name)
+	if self.IsSubTab then error("sub-tabs cannot be nested", 2) end
+	if not self.SubBar then
+		self.SubTabs, self._subCount = {}, 0
+		self.SubBar = create("Frame", {
+			Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = THEME.Rail, BorderSizePixel = 0, LayoutOrder = -1000, Parent = self.Page,
+		}, {corner(10), padding(4), create("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder, VerticalAlignment = Enum.VerticalAlignment.Center})})
+	end
+	self._subCount += 1
+	local sub = setmetatable({Name = name, Window = self.Window, ParentTab = self, IsSubTab = true}, Tab)
+	sub.Button = create("TextButton", {
+		Text = name, Font = THEME.Font, TextSize = 13, TextColor3 = THEME.SubText, AutoButtonColor = false,
+		BackgroundColor3 = THEME.Element, BackgroundTransparency = 1, Size = UDim2.new(0, 0, 1, 0),
+		AutomaticSize = Enum.AutomaticSize.X, LayoutOrder = self._subCount, Parent = self.SubBar,
+	}, {corner(7), create("UIPadding", {PaddingLeft = UDim.new(0, 16), PaddingRight = UDim.new(0, 16)})})
+	sub.Page = create("Frame", {
+		Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1,
+		Visible = false, LayoutOrder = -999, Parent = self.Page,
+	}, {list(6)})
+	sub.Button.MouseButton1Click:Connect(function() self:SelectSubTab(sub) end)
+	sub.Button.MouseEnter:Connect(function() if self.CurrentSubTab ~= sub then tween(sub.Button, {BackgroundTransparency = 0}) end end)
+	sub.Button.MouseLeave:Connect(function() if self.CurrentSubTab ~= sub then tween(sub.Button, {BackgroundTransparency = 1}) end end)
+	table.insert(self.SubTabs, sub)
+	if not self.CurrentSubTab then self:SelectSubTab(sub) end
+	return sub
+end
+
+function Tab:SelectSubTab(sub)
+	self.CurrentSubTab = sub
+	for _, s in ipairs(self.SubTabs or {}) do
+		local on = s == sub
+		s.Page.Visible = on
+		tween(s.Button, {BackgroundColor3 = on and THEME.Accent or THEME.Element, BackgroundTransparency = on and 0 or 1, TextColor3 = on and THEME.Bg or THEME.SubText})
+	end
+	local n = 0
+	for _, child in ipairs(sub.Page:GetChildren()) do
 		local sc = child:IsA("GuiObject") and child:FindFirstChildOfClass("UIScale")
 		if sc then
 			n += 1
