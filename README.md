@@ -5,10 +5,10 @@ Roblox executor UI library. `Main.lua` is the library and nothing else. A caller
 ## Loading
 
 ```lua
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/S2kh/RBXPROJECT/main/Main.lua"))()
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/S2kh/RBXPROJECT/main/Main.lua?v=" .. tick()))()
 ```
 
-That one line is the whole loader. `Example.lua` shows a complete caller built on top of it.
+That one line is the whole loader. `Example.lua` shows a complete caller built on top of it. The `?v=` .. tick() forces a fresh copy every inject; `raw.githubusercontent.com` otherwise serves a cached `Main.lua` for a few minutes after a push, so a plain URL can load stale code right after an update. Drop the query once the script is stable if you prefer the CDN cache.
 
 ## Window
 

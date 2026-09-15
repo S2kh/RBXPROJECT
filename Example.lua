@@ -5,7 +5,9 @@
 ]]
 
 -- ---------------------------------------------------------------- loader
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/S2kh/RBXPROJECT/main/Main.lua"))()
+-- The ?v=<time> defeats the raw.githubusercontent CDN cache so every inject pulls the latest Main.lua.
+-- Drop the query once the script is stable if you want the CDN to cache it again.
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/S2kh/RBXPROJECT/main/Main.lua?v=" .. tick()))()
 
 -- ---------------------------------------------------------------- window
 local Players    = game:GetService("Players")
