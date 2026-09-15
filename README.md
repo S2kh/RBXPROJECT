@@ -81,7 +81,9 @@ Stored as `<Folder>/configs/<name>.json` in the executor workspace. `<Folder>/au
 
 The workflow is explicit: type a name, press **New config** to create it from defaults, adjust your settings, then press **Save config** to write them. New refuses a name that already exists; Save and Set autoload refuse a name that has not been created yet. Nothing is written to disk unless you press Save (see AutoSave below).
 
-`AutoSave` is off by default, so changes are never persisted on their own. With `AutoSave = true`, every flag or keybind change writes the active config after a short debounce; a config becomes active when it is loaded, saved, or auto-loaded, and nothing is written while one is being applied.
+**Auto-save** is its own switch, off by default and separate from Set autoload. The Config tab has an "Auto-save the active config" toggle; `AutoSave = true` in `Library.new` just sets its starting state. When off, nothing is written unless you press Save config. When on, every flag or keybind change writes the active config after a short debounce; a config becomes active when it is loaded, saved, or auto-loaded, and nothing is written while one is being applied. The toggle is standalone, so it is never stored inside a config.
+
+Set autoload only records which config to apply on inject (via `Window:AutoLoad()`); it does not turn on auto-save.
 
 ## Re-execution
 

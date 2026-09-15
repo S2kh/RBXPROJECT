@@ -1161,10 +1161,29 @@ function Library:AddConfigTab(name, icon)
 	local grid = create("Frame", {Size = UDim2.new(1, 0, 0, 132), BackgroundTransparency = 1, Parent = tab.Page}, {
 		create("UIGridLayout", {CellSize = UDim2.new(0.5, -3, 0, 40), CellPadding = UDim2.fromOffset(6, 6), SortOrder = Enum.SortOrder.LayoutOrder}),
 	})
+	-- Auto-save is its own switch, separate from Set autoload. Standalone (not a registered element)
+	-- so it is never written into a config. Off means nothing saves unless you press Save config.
+	tab:AddSection("Auto-save")
+	local asRow = row(tab, 46)
+	label({Text = "Auto-save the active config", Size = UDim2.new(1, -80, 1, 0), Position = UDim2.fromOffset(14, 0), Parent = asRow})
+	local asHit = create("TextButton", {Text = "", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Parent = asRow})
+	local asTrack = create("Frame", {Size = UDim2.fromOffset(42, 24), Position = UDim2.new(1, -14, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = THEME.Stroke, Parent = asRow}, {corner(12)})
+	local asKnob = create("Frame", {Size = UDim2.fromOffset(18, 18), Position = UDim2.new(0, 3, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), BackgroundColor3 = Color3.new(1, 1, 1), Parent = asTrack}, {corner(9)})
+	local asNote = tab:AddLabel("")
+	local function setAutoSave(v)
+		v = v and true or false
+		self.AutoSave = v
+		tween(asTrack, {BackgroundColor3 = v and THEME.Accent or THEME.Stroke})
+		tween(asKnob, {Position = v and UDim2.new(1, -21, 0.5, 0) or UDim2.new(0, 3, 0.5, 0)}, SPRING)
+		asNote:Set(v and "On: changes write to the active config automatically, once one is loaded or saved."
+			or "Off: nothing is written until you press Save config.")
+	end
+	asHit.MouseButton1Click:Connect(function() setAutoSave(not self.AutoSave) end)
+	setAutoSave(self.AutoSave)
+
 	tab:AddSection("Saved configs")
 	tab:AddLabel("New config makes one from defaults. Adjust your settings, then Save writes them to it.")
 	tab:AddLabel(HAS_FS and ("Stored in " .. Storage.Folder .. "/configs") or "No file API detected: configs live in memory for this session only.")
-	if self.AutoSave then tab:AddLabel("AutoSave is on: changes write to the active config on their own once one is loaded or saved.") end
 	local autoloadLabel = tab:AddLabel("")
 	local listHolder = create("Frame", {Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = tab.Page}, {list(4)})
 	local empty = label({Text = "No configs yet.", TextSize = 13, TextColor3 = THEME.SubText, Size = UDim2.new(1, 0, 0, 24), Parent = listHolder})
