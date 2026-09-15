@@ -40,8 +40,10 @@ Player:AddSlider({Name = "Walk speed", Flag = "WalkSpeed", Min = 16, Max = 250, 
 end})
 
 local noclip = false
--- Three stacked dots sit left of each toggle's switch (desktop) to mark it right-clickable. Right-click
--- opens the keybind popup to pick Always / Toggle / Hold; the dots become a keycap once a key is bound.
+-- Three stacked dots on a row (desktop) mark it bindable. Click the dots, or right-click the row, to
+-- open the keybind popup. Toggles pick Always / Toggle / Hold; a bound button fires on the key; a bound
+-- dropdown steps to its next option. The dots become a keycap once a key is set. Try it on Noclip below,
+-- on the "Notify test" button, or on the "Box colour" dropdown.
 Player:AddToggle({Name = "Noclip", Flag = "Noclip", Callback = function(v) noclip = v end})
 -- Library.Connect tracks the connection so Unload disconnects it.
 Library.Connect(RunService.Stepped, function()

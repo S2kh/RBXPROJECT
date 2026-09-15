@@ -51,10 +51,10 @@ Every element takes an options table. `Flag` is the key used in `Library.Flags` 
 ```lua
 Tab:AddSection("Heading")
 Tab:AddLabel("Some text")                        -- returns {Set = fn}
-Tab:AddToggle({Name, Flag, Default, Callback})   -- three dots left of the switch mark it right-clickable; right-click for Always / Toggle / Hold
+Tab:AddToggle({Name, Flag, Default, Callback})   -- three dots mark it bindable: click them or right-click the row for Always / Toggle / Hold
 Tab:AddSlider({Name, Flag, Min, Max, Default, Step, Suffix, Callback})
-Tab:AddButton({Name, Callback})
-Tab:AddDropdown({Name, Flag, Options, Default, Callback, Search, MaxVisible})   -- el:SetOptions(list) swaps options
+Tab:AddButton({Name, Flag, Callback})   -- bindable: the key fires the button (click the dots or right-click)
+Tab:AddDropdown({Name, Flag, Options, Default, Callback, Search, MaxVisible})   -- el:SetOptions(list) swaps options; bindable: the key steps to the next option
 Tab:AddTextbox({Name, Flag, Default, Placeholder, Callback})
 Tab:AddColorPicker({Name, Flag, Default = Color3 or "#RRGGBB", Callback})   -- Value is a Color3; saved in configs as hex
 Tab:AddKeybind({Name, Flag, Default = Enum.KeyCode, Callback})   -- hidden on mobile

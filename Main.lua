@@ -12,8 +12,10 @@
 	"UI Settings" and "Config" are built by the library itself and always sit at the bottom of the tab rail.
 	Pass Settings = false / Config = false to Library.new to leave one out.
 
-	Elements: Tab, Section, Toggle (right-click → keybind: Always / Toggle / Hold), Slider, Button,
-	          Dropdown (with :SetOptions; Search = true for long lists), Textbox, ColorPicker, Keybind, Label, Notify.
+	Elements: Tab, Section, Toggle, Slider, Button, Dropdown, Textbox, ColorPicker, Keybind, Label, Notify.
+	          Toggles, buttons and dropdowns are bindable: click the three dots or right-click the row. A
+	          toggle takes Always / Toggle / Hold, a button fires on the key, a dropdown steps to its next option.
+	          Dropdowns take :SetOptions and Search = true for long lists.
 	          Tabs can hold horizontal sub-tabs (Tab:AddSubTab); a sub-tab takes the same elements a tab does.
 	Mobile:   no keybinds; hiding the menu shows a draggable floating icon that reopens it.
 	PC:       hiding shows a notification "Press <MenuKey> to open the menu".
@@ -409,7 +411,7 @@ function Library:_buildSettingsTab(name, icon)
 	tab:AddSection("Script")
 	tab:AddButton({Name = "Unload", Callback = function() self:Unload() end})
 	tab:AddLabel(IS_MOBILE and "Tap the – button to shrink the menu into a floating icon. Tap the icon to bring it back."
-		or "Right-click any toggle to give it a keybind and pick Always, Toggle or Hold.")
+		or "Click the three dots on a toggle, button or dropdown (or right-click it) to bind a key.")
 	self.SettingsTab = tab
 	return tab
 end
@@ -495,8 +497,12 @@ function Library:_bindInput()
 		for flag, bind in pairs(Library.Binds) do
 			local el = Library.Elements[flag]
 			if el and bind.Key == input.KeyCode then
-				if bind.Mode == "Toggle" then el:Set(not el.Value)
-				elseif bind.Mode == "Hold" then el:Set(true) end
+				if el.Type == "Toggle" then
+					if bind.Mode == "Toggle" then el:Set(not el.Value)
+					elseif bind.Mode == "Hold" then el:Set(true) end
+				elseif el.Type == "Button" and el.Press then el:Press()
+				elseif el.Type == "Dropdown" and el.Cycle then el:Cycle()
+				end
 			end
 		end
 	end)
@@ -700,25 +706,51 @@ function Tab:AddLabel(text)
 	return {Set = function(_, t) l.Text = t end}
 end
 
+-- Shared keybind affordance for bindable elements (toggle / button / dropdown). Draws the three stacked
+-- dots that mark a row as bindable (left-click them, or right-click the row, to open the bind popup) and
+-- the keycap shown once bound, and installs el:RefreshBind(). `pos` anchors both to the same right-edge
+-- point. showMode draws the mode word next to the key (off for button/dropdown). onState(bound) lets the
+-- element reflow its own contents. Mobile has no keybinds, so there it draws nothing and RefreshBind is a
+-- no-op (aside from onState, so layouts still settle).
+local function attachBind(window, f, hit, el, name, pos, showMode, onState)
+	if IS_MOBILE then el.RefreshBind = function() if onState then onState(false) end end; if onState then onState(false) end return end
+	-- ZIndex 6 keeps the affordance above element controls (e.g. a button fills its row at ZIndex 2).
+	local bindRow = create("Frame", {Size = UDim2.fromOffset(0, 22), AutomaticSize = Enum.AutomaticSize.X, Position = pos, AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, Visible = false, ZIndex = 6, Parent = f}, {
+		create("UIListLayout", {Padding = UDim.new(0, 6), FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder})})
+	local bindKey = keycap("", bindRow); bindKey.ZIndex = 6
+	local bindMode = label({Text = "", Font = Enum.Font.Code, TextSize = 11, TextColor3 = THEME.AccentText, Size = UDim2.fromOffset(0, 20), AutomaticSize = Enum.AutomaticSize.X, LayoutOrder = 2, Visible = showMode ~= false, ZIndex = 6, Parent = bindRow})
+	local dots = create("TextButton", {Text = "", AutoButtonColor = false, Size = UDim2.fromOffset(16, 24), Position = pos, AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, ZIndex = 6, Parent = f}, {
+		create("UIListLayout", {Padding = UDim.new(0, 3), FillDirection = Enum.FillDirection.Vertical, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder})})
+	local dotList = {}
+	for i = 1, 3 do
+		dotList[i] = create("Frame", {Size = UDim2.fromOffset(4, 4), BackgroundColor3 = THEME.SubText, BackgroundTransparency = 0.25, LayoutOrder = i, ZIndex = 6, Parent = dots}, {corner(2)})
+	end
+	local function paint(t, c) for _, d in ipairs(dotList) do tween(d, {BackgroundTransparency = t, BackgroundColor3 = c}) end end
+	dots.MouseButton1Click:Connect(function() window:_openBindPopup(el, name) end)
+	dots.MouseEnter:Connect(function() paint(0, THEME.Accent) end)
+	dots.MouseLeave:Connect(function() paint(0.25, THEME.SubText) end)
+	if hit then
+		hit.MouseButton2Click:Connect(function() window:_openBindPopup(el, name) end)
+		hit.MouseEnter:Connect(function() if dots.Visible then paint(0.05, THEME.Accent) end end)
+		hit.MouseLeave:Connect(function() paint(0.25, THEME.SubText) end)
+	end
+	function el:RefreshBind()
+		local b = Library.Binds[self.Flag]
+		bindRow.Visible = b ~= nil
+		dots.Visible = b == nil
+		if b then bindKey.Text = b.Key.Name; if showMode ~= false then bindMode.Text = string.upper(b.Mode) end end
+		if onState then onState(b ~= nil) end
+	end
+end
+
 function Tab:AddToggle(opts)
 	local window = self.Window
 	local el = {Type = "Toggle", Value = opts.Default or false}
 	register(el, opts)
 	local f = row(self, 46)
 	local hit = create("TextButton", {Text = "", BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Parent = f})
-	label({Text = opts.Name, Size = UDim2.new(1, -200, 1, 0), Position = UDim2.fromOffset(14, 0), Parent = f})
-	local bindRow = create("Frame", {Size = UDim2.new(0, 0, 1, 0), AutomaticSize = Enum.AutomaticSize.X, Position = UDim2.new(1, -68, 0, 0), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, Visible = false, Parent = f}, {
-		create("UIListLayout", {Padding = UDim.new(0, 6), FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder})})
-	local bindKey = keycap("", bindRow)
-	local bindMode = label({Text = "", Font = Enum.Font.Code, TextSize = 11, TextColor3 = THEME.AccentText, Size = UDim2.fromOffset(0, 20), AutomaticSize = Enum.AutomaticSize.X, LayoutOrder = 2, Parent = bindRow})
-	-- Three stacked dots left of the switch signal that the toggle is right-clickable (opens the keybind
-	-- popup). Hidden on mobile and once a bind is set (the keycap takes its place). Brighten on hover.
-	local bindHint = create("Frame", {Size = UDim2.fromOffset(6, 22), Position = UDim2.new(1, -62, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, Visible = not IS_MOBILE, Parent = f}, {
-		create("UIListLayout", {Padding = UDim.new(0, 3), FillDirection = Enum.FillDirection.Vertical, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder})})
-	local bindDots = {}
-	for i = 1, 3 do
-		bindDots[i] = create("Frame", {Size = UDim2.fromOffset(4, 4), BackgroundColor3 = THEME.SubText, BackgroundTransparency = 0.25, LayoutOrder = i, Parent = bindHint}, {corner(2)})
-	end
+	label({Text = opts.Name, TextTruncate = Enum.TextTruncate.AtEnd, Size = UDim2.new(1, -200, 1, 0), Position = UDim2.fromOffset(14, 0), Parent = f})
+	attachBind(window, f, hit, el, opts.Name, UDim2.new(1, -62, 0.5, 0), true)
 	local track = create("Frame", {Size = UDim2.fromOffset(42, 24), Position = UDim2.new(1, -14, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = THEME.Stroke, Parent = f}, {corner(12), stroke(THEME.Accent, 3)})
 	track.UIStroke.Transparency = 1
 	local knob = create("Frame", {Size = UDim2.fromOffset(18, 18), Position = UDim2.new(0, 3, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), BackgroundColor3 = Color3.new(1, 1, 1), Parent = track}, {corner(9)})
@@ -742,13 +774,6 @@ function Tab:AddToggle(opts)
 		end
 		if not silent then self.Callback(v) end
 	end
-	function el:RefreshBind()
-		local b = Library.Binds[self.Flag]
-		bindRow.Visible = b ~= nil
-		bindHint.Visible = b == nil and not IS_MOBILE
-		if b then bindKey.Text = b.Key.Name; bindMode.Text = string.upper(b.Mode) end
-	end
-
 	hit.MouseButton1Click:Connect(function()
 		local b = Library.Binds[el.Flag]
 		if b and b.Mode == "Always" then
@@ -757,12 +782,8 @@ function Tab:AddToggle(opts)
 		end
 		el:Set(not el.Value)
 	end)
-	if not IS_MOBILE then
-		hit.MouseButton2Click:Connect(function() window:_openBindPopup(el, opts.Name) end)
-		hit.MouseEnter:Connect(function() if bindHint.Visible then for _, d in ipairs(bindDots) do tween(d, {BackgroundTransparency = 0, BackgroundColor3 = THEME.Accent}) end end end)
-		hit.MouseLeave:Connect(function() for _, d in ipairs(bindDots) do tween(d, {BackgroundTransparency = 0.25, BackgroundColor3 = THEME.SubText}) end end)
-	end
 	el:Set(el.Value, true)
+	el:RefreshBind()
 	return el
 end
 
@@ -779,20 +800,15 @@ function Library:_openBindPopup(el, name)
 	local scale = create("UIScale", {Scale = 0.85, Parent = box})
 	tween(scale, {Scale = 1}, SPRING)
 
-	local bind = Library.Binds[el.Flag] and table.clone(Library.Binds[el.Flag]) or {Key = nil, Mode = "Toggle"}
+	-- Toggles carry a mode (Always/Toggle/Hold); buttons fire on press, dropdowns cycle. No mode row for those.
+	local isToggle = el.Type == "Toggle"
+	local defaultMode = isToggle and "Toggle" or (el.Type == "Dropdown" and "Cycle" or "Press")
+	local bind = Library.Binds[el.Flag] and table.clone(Library.Binds[el.Flag]) or {Key = nil, Mode = defaultMode}
 
-	label({Text = "Keybind · " .. name, Font = THEME.FontBold, TextSize = 14, Size = UDim2.new(1, 0, 0, 18), ZIndex = 22, Parent = box})
-	local keyBtn = create("TextButton", {Text = bind.Key and bind.Key.Name or "Click, then press a key", Font = THEME.Font, TextSize = 13, TextColor3 = THEME.Text, AutoButtonColor = false, Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = THEME.Element, ZIndex = 22, Parent = box}, {corner(), stroke()})
+	label({Text = "Keybind · " .. name, Font = THEME.FontBold, TextSize = 14, TextTruncate = Enum.TextTruncate.AtEnd, Size = UDim2.new(1, 0, 0, 18), ZIndex = 22, Parent = box})
+	local keyBtn = create("TextButton", {Text = bind.Key and bind.Key.Name or "Click, then press a key", Font = THEME.Font, TextSize = 13, TextColor3 = THEME.Text, TextTruncate = Enum.TextTruncate.AtEnd, AutoButtonColor = false, Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = THEME.Element, ZIndex = 22, Parent = box}, {corner(), stroke()})
 	hoverable(keyBtn, THEME.Element, THEME.Hover)
 
-	local modeRow = create("Frame", {Size = UDim2.new(1, 0, 0, 38), BackgroundColor3 = THEME.Rail, ZIndex = 22, Parent = box}, {corner(10), stroke(), padding(4), list(4, Enum.FillDirection.Horizontal)})
-	local modeBtns = {}
-	local function refreshModes()
-		for mode, b in pairs(modeBtns) do
-			local on = mode == bind.Mode
-			tween(b, {BackgroundColor3 = on and THEME.Accent or THEME.Rail, TextColor3 = on and THEME.Bg or THEME.SubText})
-		end
-	end
 	local function apply()
 		if bind.Key then
 			Library.Binds[el.Flag] = {Key = bind.Key, Mode = bind.Mode}
@@ -803,13 +819,26 @@ function Library:_openBindPopup(el, name)
 		touch()
 		el:RefreshBind()
 	end
-	for _, mode in ipairs({"Always", "Toggle", "Hold"}) do
-		local b = create("TextButton", {Text = mode, Font = THEME.FontBold, TextSize = 12, AutoButtonColor = false, Size = UDim2.new(1 / 3, -3, 1, 0), BackgroundColor3 = THEME.Rail, TextColor3 = THEME.SubText, ZIndex = 22, Parent = modeRow}, {corner(7)})
-		modeBtns[mode] = b
-		b.MouseButton1Click:Connect(function() bind.Mode = mode; refreshModes(); apply() end)
+
+	if isToggle then
+		local modeRow = create("Frame", {Size = UDim2.new(1, 0, 0, 38), BackgroundColor3 = THEME.Rail, ZIndex = 22, Parent = box}, {corner(10), stroke(), padding(4), list(4, Enum.FillDirection.Horizontal)})
+		local modeBtns = {}
+		local function refreshModes()
+			for mode, b in pairs(modeBtns) do
+				local on = mode == bind.Mode
+				tween(b, {BackgroundColor3 = on and THEME.Accent or THEME.Rail, TextColor3 = on and THEME.Bg or THEME.SubText})
+			end
+		end
+		for _, mode in ipairs({"Always", "Toggle", "Hold"}) do
+			local b = create("TextButton", {Text = mode, Font = THEME.FontBold, TextSize = 12, AutoButtonColor = false, Size = UDim2.new(1 / 3, -3, 1, 0), BackgroundColor3 = THEME.Rail, TextColor3 = THEME.SubText, ZIndex = 22, Parent = modeRow}, {corner(7)})
+			modeBtns[mode] = b
+			b.MouseButton1Click:Connect(function() bind.Mode = mode; refreshModes(); apply() end)
+		end
+		refreshModes()
+		label({Text = "Always on · Toggle flips · Hold to hold", TextSize = 11, TextColor3 = THEME.SubText, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, ZIndex = 22, Parent = box})
+	else
+		label({Text = el.Type == "Dropdown" and "Steps to the next option on key press." or "Fires the button on key press.", TextSize = 11, TextColor3 = THEME.SubText, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, ZIndex = 22, Parent = box})
 	end
-	refreshModes()
-	label({Text = "Always on · Toggle flips · Hold to hold", TextSize = 11, TextColor3 = THEME.SubText, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, ZIndex = 22, Parent = box})
 
 	local footer = create("Frame", {Size = UDim2.new(1, 0, 0, 30), BackgroundTransparency = 1, ZIndex = 22, Parent = box}, {list(6, Enum.FillDirection.Horizontal)})
 	local unbind = create("TextButton", {Text = "Unbind", Font = THEME.FontBold, TextSize = 12, TextColor3 = THEME.Danger, AutoButtonColor = false, Size = UDim2.new(0.5, -3, 1, 0), BackgroundColor3 = THEME.DangerDim, ZIndex = 22, Parent = footer}, {corner(8)})
@@ -879,20 +908,30 @@ function Tab:AddSlider(opts)
 end
 
 function Tab:AddButton(opts)
+	local window = self.Window
+	local el = {Type = "Button"}
+	register(el, opts)
 	local f = row(self, 42)
 	f.ClipsDescendants = true
-	local btn = create("TextButton", {Text = opts.Name, Font = THEME.FontBold, TextSize = 13, TextColor3 = THEME.Text, AutoButtonColor = false, BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 2, Parent = f})
+	local btn = create("TextButton", {Text = opts.Name, Font = THEME.FontBold, TextSize = 13, TextColor3 = THEME.Text, TextTruncate = Enum.TextTruncate.AtEnd, AutoButtonColor = false, BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), ZIndex = 2, Parent = f})
 	local scale = f:FindFirstChildOfClass("UIScale")
-	btn.MouseButton1Click:Connect(function()
-		-- ripple from the click point
-		local m = UIS:GetMouseLocation() - f.AbsolutePosition
-		local r = create("Frame", {Size = UDim2.new(), Position = UDim2.fromOffset(m.X, m.Y), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = THEME.Accent, BackgroundTransparency = 0.45, BorderSizePixel = 0, ZIndex = 1, Parent = f}, {create("UICorner", {CornerRadius = UDim.new(1, 0)})})
+	local function fire(px, py)
+		-- ripple from the given point
+		local r = create("Frame", {Size = UDim2.new(), Position = UDim2.fromOffset(px, py), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = THEME.Accent, BackgroundTransparency = 0.45, BorderSizePixel = 0, ZIndex = 1, Parent = f}, {create("UICorner", {CornerRadius = UDim.new(1, 0)})})
 		local d = f.AbsoluteSize.X * 2.2
 		tween(r, {Size = UDim2.fromOffset(d, d), BackgroundTransparency = 1}, TweenInfo.new(0.55, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)).Completed:Connect(function() r:Destroy() end)
 		scale.Scale = 0.97
 		tween(scale, {Scale = 1}, SPRING)
 		if opts.Callback then opts.Callback() end
+	end
+	function el:Press() fire(f.AbsoluteSize.X / 2, f.AbsoluteSize.Y / 2) end
+	btn.MouseButton1Click:Connect(function()
+		local m = UIS:GetMouseLocation() - f.AbsolutePosition
+		fire(m.X, m.Y)
 	end)
+	-- right-click the button (or click the dots) to bind a key that fires it
+	attachBind(window, f, btn, el, opts.Name, UDim2.new(1, -12, 0.5, 0), true)
+	el:RefreshBind()
 	return f
 end
 
@@ -910,7 +949,7 @@ function Tab:AddDropdown(opts)
 	f.ClipsDescendants = true
 	local hit = create("TextButton", {Text = "", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 42), Parent = f})
 	label({Text = opts.Name, Size = UDim2.new(0.5, 0, 0, 42), Position = UDim2.fromOffset(14, 0), Parent = f})
-	local valueLabel = label({Text = "", TextSize = 13, TextColor3 = THEME.SubText, TextXAlignment = Enum.TextXAlignment.Right, TextTruncate = Enum.TextTruncate.AtEnd, Size = UDim2.new(0.5, -40, 0, 42), Position = UDim2.new(1, -36, 0, 0), AnchorPoint = Vector2.new(1, 0), Parent = f})
+	local valueLabel = label({Text = "", TextSize = 13, TextColor3 = THEME.SubText, TextXAlignment = Enum.TextXAlignment.Right, TextTruncate = Enum.TextTruncate.AtEnd, Size = UDim2.new(0.5, -40, 0, 42), Position = UDim2.new(1, -54, 0, 0), AnchorPoint = Vector2.new(1, 0), Parent = f})
 	local arrow = label({Text = "v", Font = THEME.FontBold, TextSize = 12, TextColor3 = THEME.SubText, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.fromOffset(20, 42), Position = UDim2.new(1, -12, 0, 0), AnchorPoint = Vector2.new(1, 0), Parent = f})
 	local listFrame = create("Frame", {Size = UDim2.new(1, -20, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Position = UDim2.fromOffset(10, 44), BackgroundTransparency = 1, Parent = f}, {list(4)})
 	local search
@@ -980,7 +1019,21 @@ function Tab:AddDropdown(opts)
 	build()
 	if search then search:GetPropertyChangedSignal("Text"):Connect(build) end
 	hit.MouseButton1Click:Connect(function() setOpen(not open) end)
+	-- a bound key steps to the next option
+	function el:Cycle()
+		local listOpts = opts.Options
+		if #listOpts == 0 then return end
+		local idx = 0
+		for i, o in ipairs(listOpts) do if o == self.Value then idx = i break end end
+		self:Set(listOpts[(idx % #listOpts) + 1])
+	end
+	-- right-click the row (or click the dots) to bind; value label shifts left to clear the affordance
+	-- fixed Y (row header is 42 tall); f grows when the list opens, so a scale-based Y would drift
+	attachBind(self.Window, f, hit, el, opts.Name, UDim2.new(1, -34, 0, 21), false, function(bound)
+		valueLabel.Position = UDim2.new(1, bound and -110 or -54, 0, 0)
+	end)
 	el:Set(el.Value, true)
+	el:RefreshBind()
 	return el
 end
 
@@ -1096,8 +1149,8 @@ function Tab:AddKeybind(opts)
 		return el
 	end
 	local f = row(self, 42)
-	label({Text = opts.Name, Size = UDim2.new(1, -140, 1, 0), Position = UDim2.fromOffset(14, 0), Parent = f})
-	local btn = create("TextButton", {Text = el.Value, Font = THEME.FontBold, TextSize = 12, TextColor3 = THEME.Text, AutoButtonColor = false, Size = UDim2.fromOffset(110, 28), Position = UDim2.new(1, -12, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = THEME.Bg, Parent = f}, {corner(6), stroke()})
+	label({Text = opts.Name, TextTruncate = Enum.TextTruncate.AtEnd, Size = UDim2.new(1, -140, 1, 0), Position = UDim2.fromOffset(14, 0), Parent = f})
+	local btn = create("TextButton", {Text = el.Value, Font = THEME.FontBold, TextSize = 12, TextColor3 = THEME.Text, TextTruncate = Enum.TextTruncate.AtEnd, AutoButtonColor = false, Size = UDim2.fromOffset(110, 28), Position = UDim2.new(1, -12, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = THEME.Bg, Parent = f}, {corner(6), stroke()})
 	function el:Set(v, silent)
 		self.Value = v
 		Library.Flags[self.Flag] = v
