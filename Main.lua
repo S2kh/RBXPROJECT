@@ -280,8 +280,7 @@ function Library.new(opts)
 	})
 	self.Gui.Parent = guiParent(self.Gui)
 
-	-- CanvasGroup so the whole window (background, text, strokes) fades as one via GroupTransparency.
-	self.Main = create("CanvasGroup", {
+	self.Main = create("Frame", {
 		Name = "Main", Size = UDim2.fromOffset(760, 540), Position = UDim2.fromScale(0.5, 0.5),
 		AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Parent = self.Gui,
 	}, {corner(16), stroke(Color3.fromRGB(58, 60, 70)), create("UIGradient", {Rotation = 65, Color = ColorSequence.new(Color3.fromRGB(23, 25, 32), Color3.fromRGB(15, 16, 20))})})
@@ -391,11 +390,11 @@ function Library:_playIntro()
 	TweenService:Create(dot, TweenInfo.new(0.55, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {Size = UDim2.fromOffset(12, 12)}):Play()
 	task.delay(0.95, function()
 		spinTween:Cancel()
-		tween(overlay, {BackgroundTransparency = 1}, TweenInfo.new(0.3))
 		tween(spin.UIStroke, {Transparency = 1}, TweenInfo.new(0.25))
 		tween(dot, {BackgroundTransparency = 1}, TweenInfo.new(0.25))
 		tween(caption, {TextTransparency = 1}, TweenInfo.new(0.25))
-		task.delay(0.33, function() overlay:Destroy() end)
+		-- destroy is tied to the fade finishing, so the splash can never linger over the menu
+		tween(overlay, {BackgroundTransparency = 1}, TweenInfo.new(0.3)).Completed:Connect(function() overlay:Destroy() end)
 	end)
 end
 
@@ -426,10 +425,8 @@ function Library:SetVisible(v)
 	self.Visible = v
 	if v then
 		self.Main.Visible = true
-		-- pop in: fade the whole group up from a slightly shrunk state
-		self.Main.GroupTransparency = 1
+		-- pop in from a slightly shrunk state with a bouncy spring
 		self.Scale.Scale = 0.86
-		tween(self.Main, {GroupTransparency = 0}, TweenInfo.new(0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
 		tween(self.Scale, {Scale = 1}, POP)
 		if self.Shine then
 			self.Shine.UIGradient.Offset = Vector2.new(-1.5, 0)
@@ -443,10 +440,9 @@ function Library:SetVisible(v)
 	else
 		if self.Popup then self.Popup:Destroy(); self.Popup = nil end
 		if self.PopupBlur then self.PopupBlur:Destroy(); self.PopupBlur = nil end
-		-- fade + shrink out
-		tween(self.Main, {GroupTransparency = 1}, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+		-- shrink out, then hide
 		tween(self.Scale, {Scale = 0.9}, FAST).Completed:Connect(function()
-			if not self.Visible then self.Main.Visible = false; self.Main.GroupTransparency = 0; self.Scale.Scale = 1 end
+			if not self.Visible then self.Main.Visible = false; self.Scale.Scale = 1 end
 		end)
 		if IS_MOBILE then
 			self.MobileIcon.Visible = true
