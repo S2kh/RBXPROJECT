@@ -40,8 +40,8 @@ Player:AddSlider({Name = "Walk speed", Flag = "WalkSpeed", Min = 16, Max = 250, 
 end})
 
 local noclip = false
--- Every toggle shows a faint "right-click -> keybind" hint on desktop. Right-click it to open the
--- keybind popup and pick Always / Toggle / Hold; the hint turns into a keycap once a key is bound.
+-- Three stacked dots sit left of each toggle's switch (desktop) to mark it right-clickable. Right-click
+-- opens the keybind popup to pick Always / Toggle / Hold; the dots become a keycap once a key is bound.
 Player:AddToggle({Name = "Noclip", Flag = "Noclip", Callback = function(v) noclip = v end})
 -- Library.Connect tracks the connection so Unload disconnects it.
 Library.Connect(RunService.Stepped, function()

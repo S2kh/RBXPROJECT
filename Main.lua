@@ -60,6 +60,7 @@ local THEME = {
 
 local FAST   = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local SPRING = TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+local POP    = TweenInfo.new(0.42, Enum.EasingStyle.Back, Enum.EasingDirection.Out)   -- bouncier open
 
 -- ---------------------------------------------------------------- helpers
 -- Every connection to a service signal (UIS, RunService, Players…) goes through connect() so Unload can kill it.
@@ -279,8 +280,9 @@ function Library.new(opts)
 	})
 	self.Gui.Parent = guiParent(self.Gui)
 
-	self.Main = create("Frame", {
-		Name = "Main", Size = UDim2.fromOffset(680, 480), Position = UDim2.fromScale(0.5, 0.5),
+	-- CanvasGroup so the whole window (background, text, strokes) fades as one via GroupTransparency.
+	self.Main = create("CanvasGroup", {
+		Name = "Main", Size = UDim2.fromOffset(760, 540), Position = UDim2.fromScale(0.5, 0.5),
 		AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0, Parent = self.Gui,
 	}, {corner(16), stroke(Color3.fromRGB(58, 60, 70)), create("UIGradient", {Rotation = 65, Color = ColorSequence.new(Color3.fromRGB(23, 25, 32), Color3.fromRGB(15, 16, 20))})})
 	self.Scale = create("UIScale", {Scale = 1, Parent = self.Main})
@@ -359,6 +361,7 @@ function Library.new(opts)
 	self:_bindInput()
 	self.Main.Visible = false
 	self:SetVisible(true)
+	self:_playIntro()
 
 	-- pinned tabs: always present, always last in the rail
 	if opts.Settings ~= false then self:_buildSettingsTab(opts.SettingsName, opts.SettingsIcon) end
@@ -371,6 +374,29 @@ end
 -- Registers a function to run when the window unloads (clean up drawings, restore state, etc).
 function Library:OnUnload(fn)
 	table.insert(self._unloadCallbacks, fn)
+end
+
+-- One-time loading splash: a spinning accent ring over the freshly-opened window, then it fades away.
+function Library:_playIntro()
+	local overlay = create("Frame", {Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(15, 16, 20), BorderSizePixel = 0, ZIndex = 40, Parent = self.Main}, {corner(16)})
+	local spin = create("Frame", {Size = UDim2.fromOffset(46, 46), Position = UDim2.new(0.5, 0, 0.5, -12), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, ZIndex = 41, Parent = overlay}, {corner(23), stroke(THEME.Accent, 4)})
+	-- a transparency gradient on the ring's stroke turns the full circle into a spinning arc
+	create("UIGradient", {Rotation = 0, Parent = spin.UIStroke,
+		Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.5, 0.25), NumberSequenceKeypoint.new(0.75, 1), NumberSequenceKeypoint.new(1, 1)})})
+	local dot = create("Frame", {Size = UDim2.fromOffset(8, 8), Position = UDim2.fromScale(0.5, 0.5), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = THEME.Accent, ZIndex = 42, Parent = spin}, {corner(4)})
+	local caption = label({Text = "Loading", Font = THEME.FontBold, TextSize = 13, TextColor3 = THEME.SubText, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.new(1, 0, 0, 18), Position = UDim2.new(0.5, 0, 0.5, 34), AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = 41, Parent = overlay})
+	local spinTween = TweenService:Create(spin, TweenInfo.new(0.75, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, -1), {Rotation = 360})
+	spinTween:Play()
+	-- soft breathing pulse on the centre dot
+	TweenService:Create(dot, TweenInfo.new(0.55, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {Size = UDim2.fromOffset(12, 12)}):Play()
+	task.delay(0.95, function()
+		spinTween:Cancel()
+		tween(overlay, {BackgroundTransparency = 1}, TweenInfo.new(0.3))
+		tween(spin.UIStroke, {Transparency = 1}, TweenInfo.new(0.25))
+		tween(dot, {BackgroundTransparency = 1}, TweenInfo.new(0.25))
+		tween(caption, {TextTransparency = 1}, TweenInfo.new(0.25))
+		task.delay(0.33, function() overlay:Destroy() end)
+	end)
 end
 
 function Library:_buildSettingsTab(name, icon)
@@ -400,8 +426,11 @@ function Library:SetVisible(v)
 	self.Visible = v
 	if v then
 		self.Main.Visible = true
-		self.Scale.Scale = 0.9
-		tween(self.Scale, {Scale = 1}, SPRING)
+		-- pop in: fade the whole group up from a slightly shrunk state
+		self.Main.GroupTransparency = 1
+		self.Scale.Scale = 0.86
+		tween(self.Main, {GroupTransparency = 0}, TweenInfo.new(0.24, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
+		tween(self.Scale, {Scale = 1}, POP)
 		if self.Shine then
 			self.Shine.UIGradient.Offset = Vector2.new(-1.5, 0)
 			tween(self.Shine.UIGradient, {Offset = Vector2.new(1.5, 0)}, TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
@@ -414,8 +443,10 @@ function Library:SetVisible(v)
 	else
 		if self.Popup then self.Popup:Destroy(); self.Popup = nil end
 		if self.PopupBlur then self.PopupBlur:Destroy(); self.PopupBlur = nil end
+		-- fade + shrink out
+		tween(self.Main, {GroupTransparency = 1}, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out))
 		tween(self.Scale, {Scale = 0.9}, FAST).Completed:Connect(function()
-			if not self.Visible then self.Main.Visible = false end
+			if not self.Visible then self.Main.Visible = false; self.Main.GroupTransparency = 0; self.Scale.Scale = 1 end
 		end)
 		if IS_MOBILE then
 			self.MobileIcon.Visible = true
@@ -684,9 +715,14 @@ function Tab:AddToggle(opts)
 		create("UIListLayout", {Padding = UDim.new(0, 6), FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder})})
 	local bindKey = keycap("", bindRow)
 	local bindMode = label({Text = "", Font = Enum.Font.Code, TextSize = 11, TextColor3 = THEME.AccentText, Size = UDim2.fromOffset(0, 20), AutomaticSize = Enum.AutomaticSize.X, LayoutOrder = 2, Parent = bindRow})
-	-- Persistent hint so the right-click-to-bind feature is discoverable. Hidden on mobile (no keybinds)
-	-- and once a bind is set (the keycap above takes its place). Brightens while the row is hovered.
-	local bindHint = label({Text = "right-click → keybind", Font = THEME.Font, TextSize = 11, TextColor3 = THEME.SubText, TextTransparency = 0.4, TextXAlignment = Enum.TextXAlignment.Right, Size = UDim2.new(0, 140, 1, 0), Position = UDim2.new(1, -64, 0, 0), AnchorPoint = Vector2.new(1, 0), Visible = not IS_MOBILE, Parent = f})
+	-- Three stacked dots left of the switch signal that the toggle is right-clickable (opens the keybind
+	-- popup). Hidden on mobile and once a bind is set (the keycap takes its place). Brighten on hover.
+	local bindHint = create("Frame", {Size = UDim2.fromOffset(6, 22), Position = UDim2.new(1, -62, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, Visible = not IS_MOBILE, Parent = f}, {
+		create("UIListLayout", {Padding = UDim.new(0, 3), FillDirection = Enum.FillDirection.Vertical, HorizontalAlignment = Enum.HorizontalAlignment.Center, VerticalAlignment = Enum.VerticalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder})})
+	local bindDots = {}
+	for i = 1, 3 do
+		bindDots[i] = create("Frame", {Size = UDim2.fromOffset(4, 4), BackgroundColor3 = THEME.SubText, BackgroundTransparency = 0.25, LayoutOrder = i, Parent = bindHint}, {corner(2)})
+	end
 	local track = create("Frame", {Size = UDim2.fromOffset(42, 24), Position = UDim2.new(1, -14, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = THEME.Stroke, Parent = f}, {corner(12), stroke(THEME.Accent, 3)})
 	track.UIStroke.Transparency = 1
 	local knob = create("Frame", {Size = UDim2.fromOffset(18, 18), Position = UDim2.new(0, 3, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), BackgroundColor3 = Color3.new(1, 1, 1), Parent = track}, {corner(9)})
@@ -727,8 +763,8 @@ function Tab:AddToggle(opts)
 	end)
 	if not IS_MOBILE then
 		hit.MouseButton2Click:Connect(function() window:_openBindPopup(el, opts.Name) end)
-		hit.MouseEnter:Connect(function() if bindHint.Visible then tween(bindHint, {TextTransparency = 0.05, TextColor3 = THEME.AccentText}) end end)
-		hit.MouseLeave:Connect(function() tween(bindHint, {TextTransparency = 0.4, TextColor3 = THEME.SubText}) end)
+		hit.MouseEnter:Connect(function() if bindHint.Visible then for _, d in ipairs(bindDots) do tween(d, {BackgroundTransparency = 0, BackgroundColor3 = THEME.Accent}) end end end)
+		hit.MouseLeave:Connect(function() for _, d in ipairs(bindDots) do tween(d, {BackgroundTransparency = 0.25, BackgroundColor3 = THEME.SubText}) end end)
 	end
 	el:Set(el.Value, true)
 	return el
@@ -777,7 +813,7 @@ function Library:_openBindPopup(el, name)
 		b.MouseButton1Click:Connect(function() bind.Mode = mode; refreshModes(); apply() end)
 	end
 	refreshModes()
-	label({Text = "Always: locked on.  Toggle: key flips it.  Hold: on only while the key is held.", TextSize = 11, TextColor3 = THEME.SubText, TextWrapped = true, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, ZIndex = 22, Parent = box})
+	label({Text = "Always on · Toggle flips · Hold to hold", TextSize = 11, TextColor3 = THEME.SubText, TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Center, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, ZIndex = 22, Parent = box})
 
 	local footer = create("Frame", {Size = UDim2.new(1, 0, 0, 30), BackgroundTransparency = 1, ZIndex = 22, Parent = box}, {list(6, Enum.FillDirection.Horizontal)})
 	local unbind = create("TextButton", {Text = "Unbind", Font = THEME.FontBold, TextSize = 12, TextColor3 = THEME.Danger, AutoButtonColor = false, Size = UDim2.new(0.5, -3, 1, 0), BackgroundColor3 = THEME.DangerDim, ZIndex = 22, Parent = footer}, {corner(8)})
