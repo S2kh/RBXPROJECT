@@ -684,6 +684,9 @@ function Tab:AddToggle(opts)
 		create("UIListLayout", {Padding = UDim.new(0, 6), FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center, SortOrder = Enum.SortOrder.LayoutOrder})})
 	local bindKey = keycap("", bindRow)
 	local bindMode = label({Text = "", Font = Enum.Font.Code, TextSize = 11, TextColor3 = THEME.AccentText, Size = UDim2.fromOffset(0, 20), AutomaticSize = Enum.AutomaticSize.X, LayoutOrder = 2, Parent = bindRow})
+	-- Persistent hint so the right-click-to-bind feature is discoverable. Hidden on mobile (no keybinds)
+	-- and once a bind is set (the keycap above takes its place). Brightens while the row is hovered.
+	local bindHint = label({Text = "right-click → keybind", Font = THEME.Font, TextSize = 11, TextColor3 = THEME.SubText, TextTransparency = 0.4, TextXAlignment = Enum.TextXAlignment.Right, Size = UDim2.new(0, 140, 1, 0), Position = UDim2.new(1, -64, 0, 0), AnchorPoint = Vector2.new(1, 0), Visible = not IS_MOBILE, Parent = f})
 	local track = create("Frame", {Size = UDim2.fromOffset(42, 24), Position = UDim2.new(1, -14, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundColor3 = THEME.Stroke, Parent = f}, {corner(12), stroke(THEME.Accent, 3)})
 	track.UIStroke.Transparency = 1
 	local knob = create("Frame", {Size = UDim2.fromOffset(18, 18), Position = UDim2.new(0, 3, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), BackgroundColor3 = Color3.new(1, 1, 1), Parent = track}, {corner(9)})
@@ -710,6 +713,7 @@ function Tab:AddToggle(opts)
 	function el:RefreshBind()
 		local b = Library.Binds[self.Flag]
 		bindRow.Visible = b ~= nil
+		bindHint.Visible = b == nil and not IS_MOBILE
 		if b then bindKey.Text = b.Key.Name; bindMode.Text = string.upper(b.Mode) end
 	end
 
@@ -723,6 +727,8 @@ function Tab:AddToggle(opts)
 	end)
 	if not IS_MOBILE then
 		hit.MouseButton2Click:Connect(function() window:_openBindPopup(el, opts.Name) end)
+		hit.MouseEnter:Connect(function() if bindHint.Visible then tween(bindHint, {TextTransparency = 0.05, TextColor3 = THEME.AccentText}) end end)
+		hit.MouseLeave:Connect(function() tween(bindHint, {TextTransparency = 0.4, TextColor3 = THEME.SubText}) end)
 	end
 	el:Set(el.Value, true)
 	return el
@@ -1124,8 +1130,9 @@ function Library:AddConfigTab(name, icon)
 		create("UIGridLayout", {CellSize = UDim2.new(0.5, -3, 0, 40), CellPadding = UDim2.fromOffset(6, 6), SortOrder = Enum.SortOrder.LayoutOrder}),
 	})
 	tab:AddSection("Saved configs")
+	tab:AddLabel("New config makes one from defaults. Adjust your settings, then Save writes them to it.")
 	tab:AddLabel(HAS_FS and ("Stored in " .. Storage.Folder .. "/configs") or "No file API detected: configs live in memory for this session only.")
-	if self.AutoSave then tab:AddLabel("Changes save to the active config on their own. Load or save a config once to make it the active one.") end
+	if self.AutoSave then tab:AddLabel("AutoSave is on: changes write to the active config on their own once one is loaded or saved.") end
 	local autoloadLabel = tab:AddLabel("")
 	local listHolder = create("Frame", {Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = tab.Page}, {list(4)})
 	local empty = label({Text = "No configs yet.", TextSize = 13, TextColor3 = THEME.SubText, Size = UDim2.new(1, 0, 0, 24), Parent = listHolder})
@@ -1157,11 +1164,12 @@ function Library:AddConfigTab(name, icon)
 	local actions = {
 		{"New", function()
 			local n = getName(); if not n then return end
+			if Storage.load(n) then self:Notify("Config", n .. " already exists. Load it, or pick another name.") return end
 			for _, el in pairs(Library.Elements) do if el.Set and el.Default ~= nil then el:Set(el.Default) end end
 			Library.Binds = {}
 			for _, el in pairs(Library.Elements) do if el.RefreshBind then el:RefreshBind() end end
 			Storage.save(n, self:Serialize()); self.ActiveConfig = n; refreshList()
-			self:Notify("Config created", n .. " starts from defaults.")
+			self:Notify("Config created", n .. " starts from defaults. Adjust settings, then Save.")
 		end},
 		{"Load", function()
 			local n = getName(); if not n then return end
@@ -1172,6 +1180,7 @@ function Library:AddConfigTab(name, icon)
 		end},
 		{"Save", function()
 			local n = getName(); if not n then return end
+			if not Storage.load(n) then self:Notify("Config", "No config named " .. n .. ". Press New config first.") return end
 			Storage.save(n, self:Serialize()); self.ActiveConfig = n; refreshList()
 			self:Notify("Config saved", n)
 		end},

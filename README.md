@@ -51,7 +51,7 @@ Every element takes an options table. `Flag` is the key used in `Library.Flags` 
 ```lua
 Tab:AddSection("Heading")
 Tab:AddLabel("Some text")                        -- returns {Set = fn}
-Tab:AddToggle({Name, Flag, Default, Callback})   -- right-click for keybind (Always / Toggle / Hold)
+Tab:AddToggle({Name, Flag, Default, Callback})   -- shows a "right-click → keybind" hint; right-click for Always / Toggle / Hold
 Tab:AddSlider({Name, Flag, Min, Max, Default, Step, Suffix, Callback})
 Tab:AddButton({Name, Callback})
 Tab:AddDropdown({Name, Flag, Options, Default, Callback, Search, MaxVisible})   -- el:SetOptions(list) swaps options
@@ -77,7 +77,11 @@ Dropdown lists scroll after `MaxVisible` rows (default 8). `Search = true` adds 
 
 ## Configs
 
-Stored as `<Folder>/configs/<name>.json` in the executor workspace. `<Folder>/autoload.txt` names the config to apply on inject. Falls back to session memory when the executor has no file API. With `AutoSave = true`, every flag or keybind change writes the active config after a short debounce; a config becomes active when it is loaded, saved, or auto-loaded, and nothing is written while one is being applied.
+Stored as `<Folder>/configs/<name>.json` in the executor workspace. `<Folder>/autoload.txt` names the config to apply on inject. Falls back to session memory when the executor has no file API.
+
+The workflow is explicit: type a name, press **New config** to create it from defaults, adjust your settings, then press **Save config** to write them. New refuses a name that already exists; Save and Set autoload refuse a name that has not been created yet. Nothing is written to disk unless you press Save (see AutoSave below).
+
+`AutoSave` is off by default, so changes are never persisted on their own. With `AutoSave = true`, every flag or keybind change writes the active config after a short debounce; a config becomes active when it is loaded, saved, or auto-loaded, and nothing is written while one is being applied.
 
 ## Re-execution
 
