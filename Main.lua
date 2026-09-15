@@ -29,7 +29,7 @@
 
 local GLOBAL_KEY = "AdvancedMenu"
 if getgenv and getgenv()[GLOBAL_KEY] and type(getgenv()[GLOBAL_KEY].Unload) == "function" then
-	pcall(function() getgenv()[GLOBAL_KEY]:Unload() end)
+	pcall(function() getgenv()[GLOBAL_KEY]:Unload(true) end)
 end
 
 local Players         = game:GetService("Players")
@@ -458,19 +458,35 @@ end
 
 -- Disconnects every tracked service connection, destroys the GUI, clears the global handle.
 -- Toggle callbacks are called with false first so features (noclip, fullbright…) restore themselves.
-function Library:Unload()
+-- instant = skip the disappear animation and destroy at once (used when re-execution replaces the menu).
+function Library:Unload(instant)
 	if self.Unloaded then return end
 	self.Unloaded = true
+	-- Turn every feature off, running each callback so it can clean up. _applying suppresses config
+	-- writes (touch() bails while it is set), so tearing down never overwrites the user's saved config.
+	self._applying = true
 	for _, el in pairs(Library.Elements) do
 		if el.Type == "Toggle" and el.Value then pcall(el.Set, el, false) end
 	end
+	self._applying = false
 	for _, fn in ipairs(self._unloadCallbacks) do pcall(fn) end
 	for _, c in ipairs(CONNS) do pcall(function() c:Disconnect() end) end
 	table.clear(CONNS)
-	if self.Popup then self.Popup:Destroy() end
-	if self.PopupBlur then self.PopupBlur:Destroy() end
-	self.Gui:Destroy()
+	if self.Popup then self.Popup:Destroy(); self.Popup = nil end
+	if self.PopupBlur then self.PopupBlur:Destroy(); self.PopupBlur = nil end
 	if getgenv then getgenv()[GLOBAL_KEY] = nil end
+	-- Then disappear: a small pop, then shrink to nothing, then destroy the GUI.
+	if not instant and self.Main and self.Scale then
+		self.Main.Active = false
+		if self.Main:FindFirstChildOfClass("UIStroke") then tween(self.Main.UIStroke, {Transparency = 1}, TweenInfo.new(0.36)) end
+		tween(self.Scale, {Scale = 1.04}, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)).Completed:Connect(function()
+			tween(self.Scale, {Scale = 0}, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.In)).Completed:Connect(function()
+				self.Gui:Destroy()
+			end)
+		end)
+	else
+		self.Gui:Destroy()
+	end
 end
 
 function Library:_buildMobileIcon()

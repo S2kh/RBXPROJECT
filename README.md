@@ -36,7 +36,7 @@ UI Settings and Config are built by the library and always sit at the bottom of 
 | `Window:SetMenuKey(Enum.KeyCode)` | Change the open/close key |
 | `Window:OnUnload(fn)` | Register cleanup to run on unload |
 | `Window:AutoLoad()` | Apply the autoload config. Call once after all tabs are built |
-| `Window:Unload()` | Turn off every toggle, run OnUnload callbacks, disconnect tracked connections, destroy the GUI |
+| `Window:Unload()` | Turn every toggle off (running each callback, without writing to the saved config), run OnUnload callbacks, disconnect tracked connections, then shrink the menu away and destroy the GUI |
 
 ## Tab icons
 
