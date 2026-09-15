@@ -20,6 +20,7 @@ local Window = Library.new({
 	-- Settings = false,    -- drop the pinned UI Settings tab
 	-- Config = false,      -- drop the pinned Config tab
 	-- MenuKey = Enum.KeyCode.Insert,
+	-- AutoSave = true,     -- opt-in, off by default: nothing writes to disk unless you press Save config
 })
 
 local function getHumanoid()
@@ -37,6 +38,8 @@ Player:AddSlider({Name = "Walk speed", Flag = "WalkSpeed", Min = 16, Max = 250, 
 end})
 
 local noclip = false
+-- Every toggle shows a faint "right-click -> keybind" hint on desktop. Right-click it to open the
+-- keybind popup and pick Always / Toggle / Hold; the hint turns into a keycap once a key is bound.
 Player:AddToggle({Name = "Noclip", Flag = "Noclip", Callback = function(v) noclip = v end})
 -- Library.Connect tracks the connection so Unload disconnects it.
 Library.Connect(RunService.Stepped, function()
@@ -73,6 +76,11 @@ Visuals:AddButton({Name = "Notify test", Callback = function() Window:Notify("Vi
 
 -- Read any element's current value from Library.Flags, or drive it with Library.Elements.Flag:Set(v).
 -- e.g. Library.Elements.WalkSpeed:Set(50)
+
+-- Config tab (pinned, bottom of the rail): type a name, press "New config" to create it from
+-- defaults, adjust the toggles/sliders above, then press "Save config" to write them. Save won't
+-- touch a name that hasn't been created, and New won't overwrite one that already exists. With
+-- AutoSave off (the default) nothing is written until you press Save.
 
 -- Restore anything the script changed when the menu unloads.
 Window:OnUnload(function()
