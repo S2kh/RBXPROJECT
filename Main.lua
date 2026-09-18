@@ -637,7 +637,7 @@ end
 -- sub-tabs ---------------------------------------------------------------------
 -- A horizontal bar inside a tab, each button holding its own page of elements. The bar is created on the
 -- first call and always sits at the top of the tab. A sub-tab is a Tab, so every Add* method works on it.
-function Tab:AddSubTab(name)
+function Tab:AddSubTab(name, icon)
 	if self.IsSubTab then error("sub-tabs cannot be nested", 2) end
 	if not self.SubBar then
 		self.SubTabs, self._subCount = {}, 0
@@ -651,7 +651,15 @@ function Tab:AddSubTab(name)
 		Text = name, Font = THEME.Font, TextSize = 13, TextColor3 = THEME.SubText, AutoButtonColor = false,
 		BackgroundColor3 = THEME.Element, BackgroundTransparency = 1, Size = UDim2.new(0, 0, 1, 0),
 		AutomaticSize = Enum.AutomaticSize.X, LayoutOrder = self._subCount, Parent = self.SubBar,
-	}, {corner(7), create("UIPadding", {PaddingLeft = UDim.new(0, 16), PaddingRight = UDim.new(0, 16)})})
+	}, {corner(7), create("UIPadding", {PaddingLeft = UDim.new(0, icon and 30 or 16), PaddingRight = UDim.new(0, 16)})})
+	-- optional leading icon (asset id number or an "rbxassetid://…" / Library.Icons string) — text stays optional
+	if icon then
+		sub.Icon = create("ImageLabel", {
+			Image = type(icon) == "number" and ("rbxassetid://" .. icon) or icon,
+			ImageColor3 = THEME.SubText, BackgroundTransparency = 1,
+			Size = UDim2.fromOffset(16, 16), Position = UDim2.new(0, 9, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5), Parent = sub.Button,
+		})
+	end
 	sub.Page = create("Frame", {
 		Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1,
 		Visible = false, LayoutOrder = -999, Parent = self.Page,
@@ -670,6 +678,7 @@ function Tab:SelectSubTab(sub)
 		local on = s == sub
 		s.Page.Visible = on
 		tween(s.Button, {BackgroundColor3 = on and THEME.Accent or THEME.Element, BackgroundTransparency = on and 0 or 1, TextColor3 = on and THEME.Bg or THEME.SubText})
+		if s.Icon then tween(s.Icon, {ImageColor3 = on and THEME.Bg or THEME.SubText}) end
 	end
 	local n = 0
 	for _, child in ipairs(sub.Page:GetChildren()) do
