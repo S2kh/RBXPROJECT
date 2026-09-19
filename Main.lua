@@ -241,6 +241,29 @@ function Storage.setAutoload(name)
 	end
 end
 
+-- The menu open/close key is a GLOBAL preference: it lives in a FIXED folder shared by every script that
+-- uses this lib (NOT under the per-script config Folder), and is saved the moment it changes — completely
+-- separate from configs. So setting it once (in any script) carries to all of them.
+local MENUKEY_DIR = "RBXPROJECT_Global"
+local function menuKeyPath() return MENUKEY_DIR .. "/menukey.txt" end
+function Storage.saveMenuKey(name)
+	if HAS_FS then
+		pcall(function()
+			if not isfolder(MENUKEY_DIR) then makefolder(MENUKEY_DIR) end
+			writefile(menuKeyPath(), name)
+		end)
+	else
+		Storage._menuKey = name
+	end
+end
+function Storage.loadMenuKey()
+	if HAS_FS then
+		local ok, n = pcall(function() local p = menuKeyPath(); return isfile(p) and readfile(p) or nil end)
+		if ok and n and n ~= "" then return n end
+	end
+	return Storage._menuKey
+end
+
 -- ---------------------------------------------------------------- library
 local Library = {
 	Flags = {},      -- flag -> current value
@@ -272,6 +295,15 @@ function Library.new(opts)
 	opts = opts or {}
 	local self = setmetatable({Tabs = {}, Visible = true, Listening = false, TintIcons = opts.TintIcons ~= false, _unloadCallbacks = {}}, Library)
 	if opts.MenuKey then Library.MenuKey = opts.MenuKey end
+	-- a saved GLOBAL menu key (set in any script using this lib) wins over the default and opts.MenuKey,
+	-- so the user's chosen toggle key carries across every script. Loaded before the UI/keychip is built.
+	do
+		local saved = Storage.loadMenuKey()
+		if saved then
+			local ok, kc = pcall(function() return Enum.KeyCode[saved] end)
+			if ok and typeof(kc) == "EnumItem" then Library.MenuKey = kc end
+		end
+	end
 	self.AutoSave = opts.AutoSave == true
 	Library._window = self
 	Storage.init(opts.Folder)
@@ -407,7 +439,6 @@ function Library:_buildSettingsTab(name, icon)
 		self:SetMenuKey(key)
 		self:Notify("Menu keybind", "Now bound to " .. key.Name)
 	end})
-	tab:AddButton({Name = "Test notification", Callback = function() self:Notify("Hello", "Notifications are working.") end})
 	tab:AddSection("Script")
 	tab:AddButton({Name = "Unload", Callback = function() self:Unload() end})
 	tab:AddLabel(IS_MOBILE and "Tap the – button to shrink the menu into a floating icon. Tap the icon to bring it back."
@@ -420,6 +451,7 @@ end
 function Library:SetMenuKey(key)
 	Library.MenuKey = key
 	if self.KeyChip then self.KeyChip.Text = key.Name end
+	Storage.saveMenuKey(key.Name) -- global + immediate, no matter what — separate from configs
 end
 
 function Library:SetVisible(v)
@@ -545,6 +577,10 @@ end
 
 -- notifications ----------------------------------------------------------------
 function Library:Notify(title, body, duration)
+	-- while a config is being applied, feature callbacks fire in bulk — swallow their individual notifications
+	-- so a load shows ONE summary ("N features loaded") instead of 50 toasts. (Checks the window either way,
+	-- whether Notify was called on the window instance or the Library table.)
+	if self._applying or (Library._window and Library._window._applying) then return end
 	duration = duration or 3.5
 	local slot = create("Frame", {Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, ClipsDescendants = true, Parent = self.NotifHolder})
 	local card = create("Frame", {Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, Position = UDim2.fromOffset(320, 0), BackgroundColor3 = THEME.Panel, Parent = slot}, {corner(12), stroke(Color3.fromRGB(58, 60, 70))})
@@ -1195,15 +1231,23 @@ function Library:Serialize()
 	local binds = {}
 	for flag, b in pairs(Library.Binds) do binds[flag] = {Key = b.Key.Name, Mode = b.Mode} end
 	local flags = {}
-	for flag, v in pairs(Library.Flags) do flags[flag] = (typeof(v) == "Color3") and toHex(v) or v end
-	return {flags = flags, binds = binds, menuKey = Library.MenuKey.Name}
+	-- MenuKey is a GLOBAL preference, never part of a config (see Storage.saveMenuKey / SetMenuKey).
+	for flag, v in pairs(Library.Flags) do
+		if flag ~= "MenuKey" then flags[flag] = (typeof(v) == "Color3") and toHex(v) or v end
+	end
+	return {flags = flags, binds = binds}
 end
 
+-- Apply a config. Returns the number of features restored. Notifications from feature callbacks are
+-- suppressed for the duration (see Notify) so the caller can show a single summary.
 function Library:Apply(data)
 	self._applying = true
+	local count = 0
 	for flag, v in pairs(data.flags or {}) do
-		local el = Library.Elements[flag]
-		if el and el.Type ~= "Keybind" then el:Set(el.Type == "ColorPicker" and (fromHex(v) or el.Value) or v) end
+		if flag ~= "MenuKey" then
+			local el = Library.Elements[flag]
+			if el and el.Type ~= "Keybind" then el:Set(el.Type == "ColorPicker" and (fromHex(v) or el.Value) or v); count = count + 1 end
+		end
 	end
 	Library.Binds = {}
 	for flag, b in pairs(data.binds or {}) do
@@ -1211,10 +1255,11 @@ function Library:Apply(data)
 	end
 	for _, el in pairs(Library.Elements) do
 		if el.RefreshBind then el:RefreshBind() end
-		if el.Type == "Keybind" and data.flags and data.flags[el.Flag] then el:Set(data.flags[el.Flag]) end
+		if el.Type == "Keybind" and el.Flag ~= "MenuKey" and data.flags and data.flags[el.Flag] then el:Set(data.flags[el.Flag]) end
 	end
-	if data.menuKey and toKeyCode(data.menuKey) then self:SetMenuKey(toKeyCode(data.menuKey)) end
 	self._applying = false
+	self._lastApplyCount = count
+	return count
 end
 
 -- Call once after every tab is built. Applies the autoload config if one is set.
@@ -1223,10 +1268,10 @@ function Library:AutoLoad()
 	if not n then return end
 	local data = Storage.load(n)
 	if not data then return end
-	self:Apply(data)
+	local count = self:Apply(data)
 	self.ActiveConfig = n
 	if self.RefreshConfigList then self.RefreshConfigList() end
-	self:Notify("Config", "Auto-loaded " .. n)
+	self:Notify("Config", 'Auto-loaded "' .. n .. '" — ' .. count .. (count == 1 and " feature" or " features"))
 end
 
 function Library:AddConfigTab(name, icon)
@@ -1294,9 +1339,11 @@ function Library:AddConfigTab(name, icon)
 		{"New", function()
 			local n = getName(); if not n then return end
 			if Storage.load(n) then self:Notify("Config", n .. " already exists. Load it, or pick another name.") return end
+			self._applying = true
 			for _, el in pairs(Library.Elements) do if el.Set and el.Default ~= nil then el:Set(el.Default) end end
 			Library.Binds = {}
 			for _, el in pairs(Library.Elements) do if el.RefreshBind then el:RefreshBind() end end
+			self._applying = false
 			Storage.save(n, self:Serialize()); self.ActiveConfig = n; refreshList()
 			self:Notify("Config created", n .. " starts from defaults. Adjust settings, then Save.")
 		end},
@@ -1304,8 +1351,8 @@ function Library:AddConfigTab(name, icon)
 			local n = getName(); if not n then return end
 			local data = Storage.load(n)
 			if not data then self:Notify("Config", "No config named " .. n) return end
-			self:Apply(data); self.ActiveConfig = n; refreshList()
-			self:Notify("Config loaded", n)
+			local count = self:Apply(data); self.ActiveConfig = n; refreshList()
+			self:Notify("Config loaded", count .. (count == 1 and " feature" or " features") .. ' restored from "' .. n .. '"')
 		end},
 		{"Save", function()
 			local n = getName(); if not n then return end
